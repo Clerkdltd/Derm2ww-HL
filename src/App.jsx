@@ -284,6 +284,10 @@ export default function ClinicLetterApp() {
   const [chaperoneName, setChaperoneName] = useState("");
   const [chaperoneRole, setChaperoneRole] = useState("");
 
+  // Person present
+  const [personName, setPersonName] = useState("");
+  const [personRelation, setPersonRelation] = useState("");
+
   // Lesions — site for lesion 0 is kept in sync with location
   const [lesions, setLesions] = useState([{ site: "", size: "", dermoscopy: [], dermoscopyFree: "" }]);
 
@@ -416,6 +420,14 @@ export default function ClinicLetterApp() {
     return chaperone ? low(chaperone) : "[chaperone]";
   }, [chaperone, chaperoneName, chaperoneRole]);
 
+  // Builds the mid-sentence person-present phrase, e.g. "with Jane, your partner,"
+  const personPresentPhrase = useMemo(() => {
+    if (!personName && !personRelation) return "";
+    if (personName && personRelation) return `, with ${personName}, your ${low(personRelation)},`;
+    if (personName) return `, with ${personName},`;
+    return `, with your ${low(personRelation)},`;
+  }, [personName, personRelation]);
+
   const generateLetter = useCallback(() => {
     const lines = [];
     lines.push(`Date: ${today}`);
@@ -470,7 +482,7 @@ export default function ClinicLetterApp() {
     });
 
     // Prose section — lowercase values mid-sentence
-    lines.push(`I reviewed you this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
+    lines.push(`I reviewed you${personPresentPhrase} this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
     if (hobbiesText && !hobbies.includes("No outdoor hobbies")) {
       lines.push(`You do enjoy ${low(hobbiesText)}.`);
     } else if (hobbies.includes("No outdoor hobbies")) {
@@ -500,7 +512,7 @@ export default function ClinicLetterApp() {
     lines.push("GMC: 7837565");
 
     return lines.join("\n");
-  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbiesText,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,followUpParagraph,today]);
+  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbiesText,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,followUpParagraph,personPresentPhrase,today]);
 
   const copyToClipboard = () => {
     const text = generateLetter();
@@ -521,6 +533,7 @@ export default function ClinicLetterApp() {
     setChildhoodBurn(""); setHobbies([]); setHobbiesFree(""); setPmh(""); setAnticoag("");
     setAllergies(""); setPpm(""); setSocial([]); setSocialFree(""); setPerfStatus("");
     setFullExam(""); setSkinExamFindings(""); setChaperone(""); setChaperoneName(""); setChaperoneRole("");
+    setPersonName(""); setPersonRelation("");
     setLesions([{ site: "", size: "", dermoscopy: [], dermoscopyFree: "" }]);
     setConsultInvolvement(""); setConsultInvolved(""); setView("form");
   };
@@ -657,6 +670,10 @@ export default function ClinicLetterApp() {
           {/* --- EXAMINATION --- */}
           <div style={cardStyle}>
             <SectionHeader icon="🩺">Examination</SectionHeader>
+            <TextField label="Person present — name (optional)" value={personName} onChange={setPersonName} placeholder="e.g. Jane" />
+            <SelectField label="Person present — relation (optional)" value={personRelation} onChange={setPersonRelation}
+              options={["Partner", "Spouse", "Husband", "Wife", "Mother", "Father", "Daughter", "Son", "Sister", "Brother", "Friend", "Carer"]}
+              allowFreeText placeholder="Select relation..." />
             <SelectOrFreeText label="Full skin examination performed" required value={fullExam} onChange={(v) => { setFullExam(v); if (v !== "Yes") setSkinExamFindings(""); }}
               options={["Yes", "No"]} />
             {fullExam === "Yes" && (
