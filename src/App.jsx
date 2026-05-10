@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 
+// ─── Static / standardised lists (not user-editable) ───────────────────────
 const DERMOSCOPY_OPTIONS = [
   "Comedonal-like openings", "Milia-like cysts", "Fingerprint pattern",
   "Cerebriform surface", "Hairpin vessels", "Stuck-on appearance",
@@ -12,19 +13,6 @@ const DERMOSCOPY_OPTIONS = [
   "Rosette sign under polarised light"
 ];
 
-const MANAGEMENT_PLAN_OPTIONS = [
-  "Reassurance and discharge",
-  "Clinical photography",
-  "Biopsy",
-  "Referral to plastic surgeon",
-  "Referral to Mohs surgeon",
-  "Referral for excisional biopsy",
-  "Referral for punch biopsy",
-  "Referral for curette and cautery",
-  "Cryotherapy",
-  "Clinic review follow up"
-];
-
 const SOCIAL_OPTIONS = [
   "Heavy cigarette smoker", "Moderate cigarette smoker", "Minimal cigarette smoker",
   "Ex-heavy cigarette smoker", "Ex-moderate cigarette smoker", "Ex-minimal cigarette smoker",
@@ -32,24 +20,6 @@ const SOCIAL_OPTIONS = [
   "Heavy alcohol use", "Moderate alcohol use", "Minimal alcohol use", "No alcohol use",
   "Lives alone", "Lives with family", "Lives with partner"
 ];
-
-const HOBBY_OPTIONS = [
-  "No outdoor hobbies", "Enjoys gardening", "Enjoys horse riding",
-  "Enjoys outdoor sports", "Enjoys watersports"
-];
-
-const DIAGNOSIS_OPTIONS = [
-  "Suspected basal cell carcinoma", "Suspected squamous cell carcinoma",
-  "Suspected melanoma", "Seborrhoeic keratosis", "Actinic keratosis"
-];
-
-const PATIENT_INFO_OPTIONS = [
-  "ABCDE mole check", "Sun safety", "Seborrhoeic keratosis",
-  "Incisional biopsy", "Curette and cautery", "Punch biopsy",
-  "Cryotherapy", "Efudix", "Actinic keratosis"
-];
-
-const SYMPTOM_OPTIONS = ["None", "Itchy", "Bleeding", "Painful"];
 
 const SKIN_TYPES = [
   "Type I - Highly sensitive, always burns, never tans",
@@ -69,22 +39,37 @@ const PERFORMANCE_STATUS = [
   "5 - Dead"
 ];
 
-const CHAPERONE_ROLES = [
-  "Nurse", "Healthcare assistant", "Medical student", "Clinic coordinator"
-];
-
-// helpers
-const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-const low = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-const joinMulti = (arr, free) => {
-  const all = [...arr];
-  if (free) all.push(free);
-  return all.join(", ");
+// ─── User-editable defaults (persisted to localStorage via customSettings) ──
+const DEFAULT_SETTINGS = {
+  reasonOptions:       ["Two-week wait skin cancer referral", "Follow up"],
+  consultantOptions:   ["Dr Griffin", "Dr Stylianou"],
+  diagnosisOptions:    ["Suspected basal cell carcinoma", "Suspected squamous cell carcinoma", "Suspected melanoma", "Seborrhoeic keratosis", "Actinic keratosis"],
+  managementOptions:   ["Reassurance and discharge", "Clinical photography", "Biopsy", "Referral to plastic surgeon", "Referral to Mohs surgeon", "Referral for excisional biopsy", "Referral for punch biopsy", "Referral for curette and cautery", "Cryotherapy", "Clinic review follow up"],
+  patientInfoOptions:  ["ABCDE mole check", "Sun safety", "Seborrhoeic keratosis", "Incisional biopsy", "Curette and cautery", "Punch biopsy", "Cryotherapy", "Efudix", "Actinic keratosis"],
+  gpActionsOptions:    ["Script", "None"],
+  twwOptions:          ["Step down", "Remain on TWW pathway"],
+  followUpOptions:     ["Discharge", "With results"],
+  chaperoneRoleOptions:["Nurse", "Healthcare assistant", "Medical student", "Clinic coordinator"],
+  // "No outdoor hobbies" is always prepended automatically in the form
+  hobbyOptions:        ["Gardening", "Horse riding", "Outdoor sports", "Watersports"],
 };
-const capJoin = (arr, free) => cap(joinMulti(arr, free));
-const lowJoin = (arr, free) => low(joinMulti(arr, free));
 
-// --- Reusable components ---
+// ─── Helpers ────────────────────────────────────────────────────────────────
+const cap  = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const low  = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+const joinMulti = (arr, free) => { const all = [...arr]; if (free) all.push(free); return all.join(", "); };
+const capJoin   = (arr, free) => cap(joinMulti(arr, free));
+
+// Formats ["Gardening","Horse riding","Watersports"] → "gardening, horse riding and watersports"
+const formatHobbyList = (arr, free) => {
+  const items = [...arr.filter(h => h !== "No outdoor hobbies")];
+  if (free) items.push(free);
+  if (!items.length) return "";
+  if (items.length === 1) return items[0].toLowerCase();
+  return items.slice(0, -1).map(h => h.toLowerCase()).join(", ") + " and " + items[items.length - 1].toLowerCase();
+};
+
+// ─── Reusable UI components ─────────────────────────────────────────────────
 
 function SectionHeader({ children, icon }) {
   return (
@@ -119,20 +104,17 @@ function SelectField({ label, required, value, onChange, options, placeholder, a
     <div style={{ marginBottom: 12 }}>
       <FieldLabel required={required}>{label}</FieldLabel>
       {!custom ? (
-        <div style={{ display: "flex", gap: 6 }}>
-          <select value={value} onChange={e => { if (e.target.value === "__custom__") { setCustom(true); onChange(""); } else onChange(e.target.value); }}
-            style={{ ...inputStyle, borderColor, flex: 1 }}>
-            <option value="">{placeholder || "Select..."}</option>
-            {options.map(o => <option key={o} value={o}>{o}</option>)}
-            {allowFreeText && <option value="__custom__">✏️ Free text...</option>}
-          </select>
-        </div>
+        <select value={value} onChange={e => { if (e.target.value === "__custom__") { setCustom(true); onChange(""); } else onChange(e.target.value); }}
+          style={{ ...inputStyle, borderColor }}>
+          <option value="">{placeholder || "Select..."}</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+          {allowFreeText && <option value="__custom__">✏️ Free text...</option>}
+        </select>
       ) : (
         <div style={{ display: "flex", gap: 6 }}>
           <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder="Type here..."
             style={{ ...inputStyle, borderColor, flex: 1 }} autoFocus />
-          <button onClick={() => { setCustom(false); onChange(""); }}
-            style={{ ...btnSmall, background: "#ecf0f1", color: "#7f8c8d" }}>↩</button>
+          <button onClick={() => { setCustom(false); onChange(""); }} style={{ ...btnSmall, background: "#ecf0f1", color: "#7f8c8d" }}>↩</button>
         </div>
       )}
     </div>
@@ -155,9 +137,7 @@ function TextField({ label, required, value, onChange, placeholder, multiline })
 function CheckboxGroup({ label, required, options, selected, onChange, allowFreeText, freeText, onFreeTextChange }) {
   const filled = selected.length > 0 || (freeText && freeText.length > 0);
   const borderColor = required && !filled ? "#e74c3c" : filled ? "#27ae60" : "#bdc3c7";
-  const toggle = (opt) => {
-    onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
-  };
+  const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
   return (
     <div style={{ marginBottom: 12 }}>
       <FieldLabel required={required}>{label}</FieldLabel>
@@ -165,12 +145,7 @@ function CheckboxGroup({ label, required, options, selected, onChange, allowFree
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {options.map(o => (
             <button key={o} onClick={() => toggle(o)}
-              style={{
-                ...tagStyle,
-                background: selected.includes(o) ? "#1a5276" : "#f0f4f8",
-                color: selected.includes(o) ? "#fff" : "#2c3e50",
-                borderColor: selected.includes(o) ? "#1a5276" : "#d5dbe1"
-              }}>
+              style={{ ...tagStyle, background: selected.includes(o) ? "#1a5276" : "#f0f4f8", color: selected.includes(o) ? "#fff" : "#2c3e50", borderColor: selected.includes(o) ? "#1a5276" : "#d5dbe1" }}>
               {selected.includes(o) ? "✓ " : ""}{o}
             </button>
           ))}
@@ -193,20 +168,17 @@ function SelectOrFreeText({ label, required, value, onChange, options, placehold
       <FieldLabel required={required}>{label}</FieldLabel>
       <div style={{ display: "flex", gap: 6 }}>
         {mode === "select" ? (
-          <>
-            <select value={value} onChange={e => { if (e.target.value === "__custom__") { setMode("free"); onChange(""); } else onChange(e.target.value); }}
-              style={{ ...inputStyle, borderColor, flex: 1 }}>
-              <option value="">{placeholder || "Select..."}</option>
-              {options.map(o => <option key={o} value={o}>{o}</option>)}
-              <option value="__custom__">✏️ Free text...</option>
-            </select>
-          </>
+          <select value={value} onChange={e => { if (e.target.value === "__custom__") { setMode("free"); onChange(""); } else onChange(e.target.value); }}
+            style={{ ...inputStyle, borderColor, flex: 1 }}>
+            <option value="">{placeholder || "Select..."}</option>
+            {options.map(o => <option key={o} value={o}>{o}</option>)}
+            <option value="__custom__">✏️ Free text...</option>
+          </select>
         ) : (
           <>
             <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder="Type here..."
               style={{ ...inputStyle, borderColor, flex: 1 }} autoFocus />
-            <button onClick={() => { setMode("select"); onChange(""); }}
-              style={{ ...btnSmall, background: "#ecf0f1", color: "#7f8c8d" }}>↩</button>
+            <button onClick={() => { setMode("select"); onChange(""); }} style={{ ...btnSmall, background: "#ecf0f1", color: "#7f8c8d" }}>↩</button>
           </>
         )}
       </div>
@@ -214,6 +186,80 @@ function SelectOrFreeText({ label, required, value, onChange, options, placehold
   );
 }
 
+// ─── Settings modal ──────────────────────────────────────────────────────────
+
+const SETTINGS_SECTIONS = [
+  { key: "reasonOptions",        label: "Reason for attendance" },
+  { key: "consultantOptions",    label: "Responsible Consultant" },
+  { key: "diagnosisOptions",     label: "Diagnosis" },
+  { key: "managementOptions",    label: "Management plan" },
+  { key: "patientInfoOptions",   label: "Patient information provided" },
+  { key: "gpActionsOptions",     label: "Actions for GP" },
+  { key: "twwOptions",           label: "TWW pathway" },
+  { key: "followUpOptions",      label: "Follow up" },
+  { key: "chaperoneRoleOptions", label: "Chaperone roles" },
+  { key: "hobbyOptions",         label: 'Hobbies (excluding "No outdoor hobbies")' },
+];
+
+function SettingsModal({ settings, onChange, onClose }) {
+  const [drafts, setDrafts] = useState({});
+
+  const remove = (key, item) => onChange({ ...settings, [key]: settings[key].filter(o => o !== item) });
+
+  const add = (key) => {
+    const val = (drafts[key] || "").trim();
+    if (!val || settings[key].includes(val)) return;
+    onChange({ ...settings, [key]: [...settings[key], val] });
+    setDrafts(d => ({ ...d, [key]: "" }));
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 300, overflowY: "auto", padding: "32px 16px" }}>
+      <div style={{ maxWidth: 600, margin: "0 auto", background: "#fff", borderRadius: 14, padding: "24px 24px 32px", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 18, color: "#1a5276" }}>⚙️ Settings</div>
+          <button onClick={onClose} style={{ ...btnSmall, background: "#ecf0f1", color: "#555" }}>✕ Close</button>
+        </div>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#7f8c8d", marginTop: 0, marginBottom: 20 }}>
+          Customise the options in each list. Changes are saved to your browser and persist between sessions.
+        </p>
+
+        {SETTINGS_SECTIONS.map(({ key, label }) => (
+          <div key={key} style={{ marginBottom: 22, paddingBottom: 22, borderBottom: "1px solid #e8ecf0" }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 13, color: "#2c3e50", marginBottom: 8 }}>{label}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              {(settings[key] || []).map(item => (
+                <span key={item} style={{ ...tagStyle, background: "#f0f4f8", color: "#2c3e50", borderColor: "#d5dbe1", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  {item}
+                  <button onClick={() => remove(key, item)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#c0392b", padding: 0, fontSize: 13, lineHeight: 1, fontWeight: 700 }}>✕</button>
+                </span>
+              ))}
+              {(settings[key] || []).length === 0 && (
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#aaa", fontStyle: "italic" }}>No options — add one below</span>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input type="text" value={drafts[key] || ""} placeholder="Add option..."
+                onChange={e => setDrafts(d => ({ ...d, [key]: e.target.value }))}
+                onKeyDown={e => e.key === "Enter" && add(key)}
+                style={{ ...inputStyle, flex: 1, fontSize: 12 }} />
+              <button onClick={() => add(key)} style={{ ...btnSmall, background: "#1a5276", color: "#fff", padding: "6px 14px" }}>Add</button>
+            </div>
+          </div>
+        ))}
+
+        <button onClick={() => onChange(DEFAULT_SETTINGS)}
+          style={{ ...btnSmall, background: "#fee2e2", color: "#c0392b", width: "100%", padding: "10px 0", fontSize: 13, borderRadius: 8 }}>
+          🗑 Reset all to defaults
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared style tokens ─────────────────────────────────────────────────────
 const inputStyle = {
   width: "100%", padding: "8px 12px", borderRadius: 7, border: "1.5px solid #bdc3c7",
   fontFamily: "'DM Sans', sans-serif", fontSize: 13, outline: "none", boxSizing: "border-box",
@@ -228,297 +274,290 @@ const btnSmall = {
   padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer",
   fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600
 };
+const tabBtn = {
+  padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13, transition: "all 0.2s"
+};
 
-// --- MAIN APP ---
+// ─── Main app ────────────────────────────────────────────────────────────────
 
 export default function ClinicLetterApp() {
-  // Top section
-  const [reason, setReason] = useState("");
-  const [consultant, setConsultant] = useState("");
-  const [diagnosis, setDiagnosis] = useState([]);
-  const [diagnosisFree, setDiagnosisFree] = useState("");
-  const [managementPlan, setManagementPlan] = useState([]);
+  // Settings (persisted to localStorage)
+  const [customSettings, setCustomSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem("clinicLetterSettings");
+      if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_SETTINGS;
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const saveSettings = (next) => {
+    setCustomSettings(next);
+    try { localStorage.setItem("clinicLetterSettings", JSON.stringify(next)); } catch {}
+  };
+
+  const s = customSettings; // shorthand throughout JSX
+
+  // ── Clinic details ──
+  const [reason, setReason]                   = useState("");
+  const [consultant, setConsultant]           = useState("");
+  const [diagnosis, setDiagnosis]             = useState([]);
+  const [diagnosisFree, setDiagnosisFree]     = useState("");
+  const [managementPlan, setManagementPlan]   = useState([]);
   const [managementPlanFree, setManagementPlanFree] = useState("");
-  const [patientInfo, setPatientInfo] = useState(["ABCDE mole check", "Sun safety"]);
+  const [patientInfo, setPatientInfo]         = useState(["ABCDE mole check", "Sun safety"]);
   const [patientInfoFree, setPatientInfoFree] = useState("");
-  const [gpActions, setGpActions] = useState([]);
-  const [gpActionsFree, setGpActionsFree] = useState("");
-  const [lesionId, setLesionId] = useState("");
-  const [twwPathway, setTwwPathway] = useState("");
-  const [followUp, setFollowUp] = useState("");
+  const [gpActions, setGpActions]             = useState([]);
+  const [gpActionsFree, setGpActionsFree]     = useState("");
+  const [lesionId, setLesionId]               = useState("");
+  const [twwPathway, setTwwPathway]           = useState("");
+  const [followUp, setFollowUp]               = useState("");
 
-  // Clinical assessment
-  const [location, setLocation] = useState("");
-  const [duration, setDuration] = useState("");
-  const [reportedChange, setReportedChange] = useState([]);
+  // ── Clinical assessment ──
+  const [location, setLocation]               = useState("");
+  const [duration, setDuration]               = useState("");
+  const [reportedChange, setReportedChange]   = useState([]);
   const [reportedChangeFree, setReportedChangeFree] = useState("");
-  const [symptoms, setSymptoms] = useState([]);
-  const [symptomsFree, setSymptomsFree] = useState("");
+  const [symptoms, setSymptoms]               = useState([]);
+  const [symptomsFree, setSymptomsFree]       = useState("");
 
-  // Risk factors
-  const [prevCancer, setPrevCancer] = useState("");
-  const [familyHx, setFamilyHx] = useState("");
-  const [immunosupp, setImmunosupp] = useState("");
-  const [skinType, setSkinType] = useState("");
-  const [sunExposure, setSunExposure] = useState("");
-  const [sunbed, setSunbed] = useState("");
-  const [workedOutside, setWorkedOutside] = useState("");
-  const [livedAbroad, setLivedAbroad] = useState("");
-  const [childhoodBurn, setChildhoodBurn] = useState("");
-  const [hobbies, setHobbies] = useState([]);
-  const [hobbiesFree, setHobbiesFree] = useState("");
+  // ── Risk factors ──
+  const [prevCancer, setPrevCancer]           = useState("");
+  const [familyHx, setFamilyHx]               = useState("");
+  const [immunosupp, setImmunosupp]           = useState("");
+  const [skinType, setSkinType]               = useState("");
+  const [sunExposure, setSunExposure]         = useState("");
+  const [sunbed, setSunbed]                   = useState("");
+  const [workedOutside, setWorkedOutside]     = useState("");
+  const [livedAbroad, setLivedAbroad]         = useState("");
+  const [childhoodBurn, setChildhoodBurn]     = useState("");
+  const [hobbies, setHobbies]                 = useState([]);
+  const [hobbiesFree, setHobbiesFree]         = useState("");
 
-  // Patient details
-  const [pmh, setPmh] = useState("");
-  const [anticoag, setAnticoag] = useState("");
-  const [allergies, setAllergies] = useState("");
-  const [ppm, setPpm] = useState("");
-  const [social, setSocial] = useState([]);
-  const [socialFree, setSocialFree] = useState("");
-  const [perfStatus, setPerfStatus] = useState("");
+  // ── Patient details ──
+  const [pmh, setPmh]                         = useState("");
+  const [anticoag, setAnticoag]               = useState("");
+  const [allergies, setAllergies]             = useState("");
+  const [ppm, setPpm]                         = useState("");
+  const [social, setSocial]                   = useState([]);
+  const [socialFree, setSocialFree]           = useState("");
+  const [perfStatus, setPerfStatus]           = useState("");
 
-  // Examination
-  const [fullExam, setFullExam] = useState("");
+  // ── Examination ──
+  // fullExam: "Normal" | "Abnormal findings" | "No" | ""
+  const [fullExam, setFullExam]               = useState("");
   const [skinExamFindings, setSkinExamFindings] = useState("");
-  const [chaperone, setChaperone] = useState("");
-  const [chaperoneName, setChaperoneName] = useState("");
-  const [chaperoneRole, setChaperoneRole] = useState("");
+  const [chaperone, setChaperone]             = useState("");
+  const [chaperoneName, setChaperoneName]     = useState("");
+  const [chaperoneRole, setChaperoneRole]     = useState("");
+  const [personName, setPersonName]           = useState("");
+  const [personRelation, setPersonRelation]   = useState("");
 
-  // Person present
-  const [personName, setPersonName] = useState("");
-  const [personRelation, setPersonRelation] = useState("");
-
-  // Lesions — site for lesion 0 is kept in sync with location
+  // ── Lesions (lesion 0 site synced from location) ──
   const [lesions, setLesions] = useState([{ site: "", size: "", dermoscopy: [], dermoscopyFree: "" }]);
 
-  // Consultant involvement
+  // ── Consultant involvement ──
   const [consultInvolvement, setConsultInvolvement] = useState("");
-  const [consultInvolved, setConsultInvolved] = useState("");
+  const [consultInvolved, setConsultInvolved]       = useState("");
 
-  // View mode
-  const [view, setView] = useState("form");
+  // ── UI state ──
+  const [view, setView]     = useState("form");
   const [copied, setCopied] = useState(false);
-  const letterRef = useRef(null);
+  const letterRef           = useRef(null);
 
-  // Keep lesion 1 site in sync with location
+  // Sync location → lesion 1 site
   const handleLocationChange = (val) => {
     setLocation(val);
-    setLesions(prev => {
-      const copy = [...prev];
-      copy[0] = { ...copy[0], site: val };
-      return copy;
-    });
+    setLesions(prev => { const c = [...prev]; c[0] = { ...c[0], site: val }; return c; });
   };
 
-  const addLesion = () => setLesions([...lesions, { site: "", size: "", dermoscopy: [], dermoscopyFree: "" }]);
+  const addLesion    = () => setLesions([...lesions, { site: "", size: "", dermoscopy: [], dermoscopyFree: "" }]);
   const removeLesion = (i) => { if (lesions.length > 1) setLesions(lesions.filter((_, idx) => idx !== i)); };
-  const updateLesion = (i, field, val) => {
-    const copy = [...lesions];
-    copy[i] = { ...copy[i], [field]: val };
-    setLesions(copy);
-  };
+  const updateLesion = (i, field, val) => { const c = [...lesions]; c[i] = { ...c[i], [field]: val }; setLesions(c); };
 
   const allDiagnoses = useMemo(() => {
-    const d = [...diagnosis];
-    if (diagnosisFree) d.push(diagnosisFree);
-    return d;
+    const d = [...diagnosis]; if (diagnosisFree) d.push(diagnosisFree); return d;
   }, [diagnosis, diagnosisFree]);
 
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   // Validation
-  const requiredFields = useMemo(() => {
-    const checks = [
-      { name: "Reason for attendance", ok: !!reason },
-      { name: "Responsible Consultant", ok: !!consultant },
-      { name: "Diagnosis", ok: diagnosis.length > 0 || !!diagnosisFree },
-      { name: "Management plan", ok: managementPlan.length > 0 || !!managementPlanFree },
-      { name: "Patient information", ok: patientInfo.length > 0 || !!patientInfoFree },
-      { name: "Actions for GP", ok: gpActions.length > 0 || !!gpActionsFree },
-      { name: "TWW pathway", ok: !!twwPathway },
-      { name: "Follow up", ok: !!followUp },
-      { name: "Location", ok: !!location },
-      { name: "Duration", ok: !!duration },
-      { name: "Reported change", ok: reportedChange.length > 0 || !!reportedChangeFree },
-      { name: "Symptoms", ok: symptoms.length > 0 || !!symptomsFree },
-      { name: "Previous skin cancer", ok: !!prevCancer },
-      { name: "Family history", ok: !!familyHx },
-      { name: "Immunosuppression", ok: !!immunosupp },
-      { name: "Skin type", ok: !!skinType },
-      { name: "Sun exposure", ok: !!sunExposure },
-      { name: "Sunbed use", ok: !!sunbed },
-      { name: "PMH", ok: !!pmh },
-      { name: "Anticoagulation", ok: !!anticoag },
-      { name: "Allergies", ok: !!allergies },
-      { name: "PPM/device", ok: !!ppm },
-      { name: "Social history", ok: social.length > 0 || !!socialFree },
-      { name: "Performance status", ok: !!perfStatus },
-      { name: "Full skin exam", ok: !!fullExam },
-      { name: "Chaperone", ok: !!chaperone },
-      { name: "Lesion 1 site", ok: !!lesions[0]?.site },
-      { name: "Lesion 1 size", ok: !!lesions[0]?.size },
-      { name: "Lesion 1 dermoscopy", ok: (lesions[0]?.dermoscopy?.length > 0 || !!lesions[0]?.dermoscopyFree) },
-      { name: "Consultant involvement", ok: !!consultInvolvement },
-      { name: "Consultant involved", ok: !!consultInvolved },
-    ];
-    return checks;
-  }, [reason,consultant,diagnosis,diagnosisFree,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExam,chaperone,lesions,consultInvolvement,consultInvolved]);
+  const requiredFields = useMemo(() => ([
+    { name: "Reason for attendance",  ok: !!reason },
+    { name: "Responsible Consultant", ok: !!consultant },
+    { name: "Diagnosis",              ok: diagnosis.length > 0 || !!diagnosisFree },
+    { name: "Management plan",        ok: managementPlan.length > 0 || !!managementPlanFree },
+    { name: "Patient information",    ok: patientInfo.length > 0 || !!patientInfoFree },
+    { name: "Actions for GP",         ok: gpActions.length > 0 || !!gpActionsFree },
+    { name: "TWW pathway",            ok: !!twwPathway },
+    { name: "Follow up",              ok: !!followUp },
+    { name: "Location",               ok: !!location },
+    { name: "Duration",               ok: !!duration },
+    { name: "Reported change",        ok: reportedChange.length > 0 || !!reportedChangeFree },
+    { name: "Symptoms",               ok: symptoms.length > 0 || !!symptomsFree },
+    { name: "Previous skin cancer",   ok: !!prevCancer },
+    { name: "Family history",         ok: !!familyHx },
+    { name: "Immunosuppression",      ok: !!immunosupp },
+    { name: "Skin type",              ok: !!skinType },
+    { name: "Sun exposure",           ok: !!sunExposure },
+    { name: "Sunbed use",             ok: !!sunbed },
+    { name: "PMH",                    ok: !!pmh },
+    { name: "Anticoagulation",        ok: !!anticoag },
+    { name: "Allergies",              ok: !!allergies },
+    { name: "PPM/device",             ok: !!ppm },
+    { name: "Social history",         ok: social.length > 0 || !!socialFree },
+    { name: "Performance status",     ok: !!perfStatus },
+    { name: "Full skin exam",         ok: !!fullExam },
+    { name: "Chaperone",              ok: !!chaperone },
+    { name: "Lesion 1 site",          ok: !!lesions[0]?.site },
+    { name: "Lesion 1 size",          ok: !!lesions[0]?.size },
+    { name: "Lesion 1 dermoscopy",    ok: lesions[0]?.dermoscopy?.length > 0 || !!lesions[0]?.dermoscopyFree },
+    { name: "Consultant involvement", ok: !!consultInvolvement },
+    { name: "Consultant involved",    ok: !!consultInvolved },
+  ]), [reason,consultant,diagnosis,diagnosisFree,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExam,chaperone,lesions,consultInvolvement,consultInvolved]);
 
   const filledCount = requiredFields.filter(f => f.ok).length;
-  const totalCount = requiredFields.length;
-  const allFilled = filledCount === totalCount;
+  const totalCount  = requiredFields.length;
+  const allFilled   = filledCount === totalCount;
+  const diagLabel   = allDiagnoses.length > 1 ? "Diagnoses" : "Diagnosis";
 
-  const diagLabel = allDiagnoses.length > 1 ? "Diagnoses" : "Diagnosis";
-
+  // Derived display values
   const chaperoneText = useMemo(() => {
     if (chaperone === "No at patient request") return "No at patient request";
-    if (chaperone === "Yes") {
-      const name = chaperoneName || "[name]";
-      const role = chaperoneRole ? ` (${chaperoneRole})` : "";
-      return `Yes, by ${name}${role}`;
-    }
+    if (chaperone === "Yes") return `Yes, by ${chaperoneName || "[name]"}${chaperoneRole ? ` (${chaperoneRole})` : ""}`;
     return chaperone;
   }, [chaperone, chaperoneName, chaperoneRole]);
 
-  const fullExamStructured = useMemo(() => {
-    if (fullExam === "No") return "No, patient kindly declined offer and has capacity";
-    if (fullExam === "Yes") {
-      return skinExamFindings
-        ? `Yes - abnormal findings noted: ${cap(skinExamFindings)}`
-        : "Yes - no abnormal findings";
-    }
-    return fullExam;
-  }, [fullExam, skinExamFindings]);
-
-  const hobbiesText = hobbies.includes("No outdoor hobbies")
-    ? "No outdoor hobbies"
-    : joinMulti(hobbies, hobbiesFree) || "";
-
-  const consultantSentence = useMemo(() => {
-    if (!consultInvolved) return "";
-    if (consultInvolvement === "Review") {
-      return `You were also reviewed by ${consultInvolved} who agreed this represents a ${low(allDiagnoses.join(", ")) || "[diagnosis]"}.`;
-    }
-    return `I discussed your case with ${consultInvolved} who agreed the plan.`;
-  }, [consultInvolvement, consultInvolved, allDiagnoses]);
-
-  const followUpParagraph = useMemo(() => {
-    if (followUp === "Discharge") {
-      return "If you find any new, non-healing or rapidly growing lesions please seek medical attention via your local care provider if you have been discharged from our service.";
-    }
-    return "If you remain under dermatology follow-up, please contact using the details at the top of this letter. Waiting times for procedures can be long therefore if you notice any significant increase in size of the growth or develop new symptoms such as pain or bleeding please contact us urgently on the above number.";
-  }, [followUp]);
-
-  // Prose chaperone phrase
   const chaperoneProsePhrase = useMemo(() => {
     if (chaperone === "No at patient request") return "no chaperone at patient request";
-    if (chaperone === "Yes") {
-      const name = chaperoneName || "[name]";
-      const role = chaperoneRole ? ` (${low(chaperoneRole)})` : "";
-      return `chaperone ${name}${role}`;
-    }
+    if (chaperone === "Yes") return `chaperone ${chaperoneName || "[name]"}${chaperoneRole ? ` (${low(chaperoneRole)})` : ""}`;
     return chaperone ? low(chaperone) : "[chaperone]";
   }, [chaperone, chaperoneName, chaperoneRole]);
 
-  // Builds the mid-sentence person-present phrase, e.g. "with Jane, your partner,"
+  const fullExamStructured = useMemo(() => {
+    if (fullExam === "No")               return "No, patient kindly declined offer and has capacity";
+    if (fullExam === "Normal")           return "Yes - no abnormal findings";
+    if (fullExam === "Abnormal findings") return skinExamFindings ? `Yes - abnormal findings noted: ${cap(skinExamFindings)}` : "Yes - abnormal findings (not described)";
+    return fullExam;
+  }, [fullExam, skinExamFindings]);
+
+  // Hobbies — structured list and prose-friendly natural-language phrase
+  const hobbyListText   = hobbies.includes("No outdoor hobbies") ? "No outdoor hobbies" : joinMulti(hobbies.filter(h => h !== "No outdoor hobbies"), hobbiesFree);
+  const hobbyProsePhrase = useMemo(() => formatHobbyList(hobbies, hobbiesFree), [hobbies, hobbiesFree]);
+
   const personPresentPhrase = useMemo(() => {
     if (!personName && !personRelation) return "";
-    if (personName && personRelation) return `, with ${personName}, your ${low(personRelation)},`;
-    if (personName) return `, with ${personName},`;
+    if (personName && personRelation)   return `, with ${personName}, your ${low(personRelation)},`;
+    if (personName)                     return `, with ${personName},`;
     return `, with your ${low(personRelation)},`;
   }, [personName, personRelation]);
 
+  const consultantSentence = useMemo(() => {
+    if (!consultInvolved) return "";
+    if (consultInvolvement === "Review")
+      return `You were also reviewed by ${consultInvolved} who agreed this represents a ${low(allDiagnoses.join(", ")) || "[diagnosis]"}.`;
+    return `I discussed your case with ${consultInvolved} who agreed the plan.`;
+  }, [consultInvolvement, consultInvolved, allDiagnoses]);
+
+  const followUpParagraph = useMemo(() =>
+    followUp === "Discharge"
+      ? "If you find any new, non-healing or rapidly growing lesions please seek medical attention via your local care provider if you have been discharged from our service."
+      : "If you remain under dermatology follow-up, please contact using the details at the top of this letter. Waiting times for procedures can be long therefore if you notice any significant increase in size of the growth or develop new symptoms such as pain or bleeding please contact us urgently on the above number."
+  , [followUp]);
+
+  // ── Letter generation ──────────────────────────────────────────────────────
   const generateLetter = useCallback(() => {
-    const lines = [];
-    lines.push(`Date: ${today}`);
-    lines.push("Two-week wait skin cancer clinic letter - HL\n");
-    lines.push(`Reason for attendance: ${cap(reason) || "[Not specified]"}\n`);
-    lines.push(`Responsible Consultant: ${cap(consultant) || "[Not specified]"}\n`);
-    lines.push("Dear\n");
-    lines.push("You recently attended the urgent skin cancer clinic for assessment. The clinical information provided by yourself and your GP were reviewed.\n");
-    lines.push(`${diagLabel}: ${capJoin(allDiagnoses, "") || "[Not specified]"}\n`);
-    lines.push(`Management plan: ${capJoin(managementPlan, managementPlanFree) || "[Not specified]"}\n`);
-    lines.push(`Patient information provided: ${capJoin(patientInfo, patientInfoFree) || "[Not specified]"}\n`);
-    lines.push(`Actions for GP: ${capJoin(gpActions, gpActionsFree) || "[Not specified]"}\n`);
-    lines.push(`How will lesion be identified: ${cap(lesionId) || "N/A"}\n`);
-    lines.push(`Remain on TWW pathway: ${cap(twwPathway) || "[Not specified]"}\n`);
-    lines.push(`Follow up: ${cap(followUp) || "[Not specified]"}\n`);
+    const L = [];
+    L.push(`Date: ${today}`);
+    L.push("Two-week wait skin cancer clinic letter - HL\n");
+    L.push(`Reason for attendance: ${cap(reason) || "[Not specified]"}\n`);
+    L.push(`Responsible Consultant: ${cap(consultant) || "[Not specified]"}\n`);
+    L.push("Dear\n");
+    L.push("You recently attended the urgent skin cancer clinic for assessment. The clinical information provided by yourself and your GP were reviewed.\n");
+    L.push(`${diagLabel}: ${capJoin(allDiagnoses, "") || "[Not specified]"}\n`);
+    L.push(`Management plan: ${capJoin(managementPlan, managementPlanFree) || "[Not specified]"}\n`);
+    L.push(`Patient information provided: ${capJoin(patientInfo, patientInfoFree) || "[Not specified]"}\n`);
+    L.push(`Actions for GP: ${capJoin(gpActions, gpActionsFree) || "[Not specified]"}\n`);
+    L.push(`How will lesion be identified: ${cap(lesionId) || "N/A"}\n`);
+    L.push(`Remain on TWW pathway: ${cap(twwPathway) || "[Not specified]"}\n`);
+    L.push(`Follow up: ${cap(followUp) || "[Not specified]"}\n`);
 
-    lines.push("Clinical Assessment");
-    lines.push(`Location: ${cap(location) || "[Not specified]"}`);
-    lines.push(`Duration: ${cap(duration) || "[Not specified]"}`);
-    lines.push(`Reported change: ${capJoin(reportedChange, reportedChangeFree) || "[Not specified]"}`);
-    lines.push(`Any symptoms: ${capJoin(symptoms, symptomsFree) || "[Not specified]"}\n`);
+    L.push("Clinical Assessment");
+    L.push(`Location: ${cap(location) || "[Not specified]"}`);
+    L.push(`Duration: ${cap(duration) || "[Not specified]"}`);
+    L.push(`Reported change: ${capJoin(reportedChange, reportedChangeFree) || "[Not specified]"}`);
+    L.push(`Any symptoms: ${capJoin(symptoms, symptomsFree) || "[Not specified]"}\n`);
 
-    lines.push("Risk factors");
-    lines.push(`Previous skin cancer: ${cap(prevCancer) || "[Not specified]"}`);
-    lines.push(`Family history: ${cap(familyHx) || "[Not specified]"}`);
-    lines.push(`Immunosuppression: ${cap(immunosupp) || "[Not specified]"}`);
-    lines.push(`Skin type: ${cap(skinType) || "[Not specified]"}`);
-    lines.push(`Sun exposure: ${cap(sunExposure) || "[Not specified]"}`);
-    lines.push(`Sunbed use: ${cap(sunbed) || "[Not specified]"}`);
-    lines.push(`Worked outside: ${cap(workedOutside) || "Never"}`);
-    lines.push(`Lived abroad: ${cap(livedAbroad) || "Never"}`);
-    lines.push(`Childhood sunburn: ${cap(childhoodBurn) || "Unknown"}`);
-    lines.push(`Hobbies: ${cap(hobbiesText) || "[Not specified]"}\n`);
+    L.push("Risk factors");
+    L.push(`Previous skin cancer: ${cap(prevCancer) || "[Not specified]"}`);
+    L.push(`Family history: ${cap(familyHx) || "[Not specified]"}`);
+    L.push(`Immunosuppression: ${cap(immunosupp) || "[Not specified]"}`);
+    L.push(`Skin type: ${cap(skinType) || "[Not specified]"}`);
+    L.push(`Sun exposure: ${cap(sunExposure) || "[Not specified]"}`);
+    L.push(`Sunbed use: ${cap(sunbed) || "[Not specified]"}`);
+    L.push(`Worked outside: ${cap(workedOutside) || "Never"}`);
+    L.push(`Lived abroad: ${cap(livedAbroad) || "Never"}`);
+    L.push(`Childhood sunburn: ${cap(childhoodBurn) || "Unknown"}`);
+    L.push(`Hobbies: ${cap(hobbyListText) || "[Not specified]"}\n`);
 
-    lines.push("Patient details");
-    lines.push(`Relevant PMH: ${cap(pmh) || "[Not specified]"}`);
-    lines.push(`Antiplatelets/anticoagulation medication: ${cap(anticoag) || "[Not specified]"}`);
-    lines.push(`Allergies: ${cap(allergies) || "[Not specified]"}`);
-    lines.push(`PPM/implanted device: ${cap(ppm) || "[Not specified]"}`);
-    lines.push(`Social history: ${capJoin(social, socialFree) || "[Not specified]"}`);
-    lines.push(`Performance status: ${cap(perfStatus) || "[Not specified]"}\n`);
+    L.push("Patient details");
+    L.push(`Relevant PMH: ${cap(pmh) || "[Not specified]"}`);
+    L.push(`Antiplatelets/anticoagulation medication: ${cap(anticoag) || "[Not specified]"}`);
+    L.push(`Allergies: ${cap(allergies) || "[Not specified]"}`);
+    L.push(`PPM/implanted device: ${cap(ppm) || "[Not specified]"}`);
+    L.push(`Social history: ${capJoin(social, socialFree) || "[Not specified]"}`);
+    L.push(`Performance status: ${cap(perfStatus) || "[Not specified]"}\n`);
 
-    lines.push("Examination");
-    lines.push(`Full skin examination performed: ${fullExamStructured || "[Not specified]"}`);
-    lines.push(`Chaperone: ${chaperoneText || "[Not specified]"}\n`);
+    L.push("Examination");
+    L.push(`Full skin examination performed: ${fullExamStructured || "[Not specified]"}`);
+    L.push(`Chaperone: ${chaperoneText || "[Not specified]"}\n`);
 
     lesions.forEach((l, i) => {
-      lines.push(`Lesion ${i + 1}:`);
-      lines.push(`Site: ${cap(l.site) || "[Not specified]"}`);
-      lines.push(`Size: ${cap(l.size) || "[Not specified]"}`);
-      lines.push(`Dermoscopy findings: ${capJoin(l.dermoscopy, l.dermoscopyFree) || "[Not specified]"}\n`);
+      L.push(`Lesion ${i + 1}:`);
+      L.push(`Site: ${cap(l.site) || "[Not specified]"}`);
+      L.push(`Size: ${cap(l.size) || "[Not specified]"}`);
+      L.push(`Dermoscopy findings: ${capJoin(l.dermoscopy, l.dermoscopyFree) || "[Not specified]"}\n`);
     });
 
-    // Prose section — lowercase values mid-sentence
-    lines.push(`I reviewed you${personPresentPhrase} this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
-    if (hobbiesText && !hobbies.includes("No outdoor hobbies")) {
-      lines.push(`You do enjoy ${low(hobbiesText)}.`);
-    } else if (hobbies.includes("No outdoor hobbies")) {
-      lines.push("You have no outdoor hobbies.");
-    }
-    lines.push("");
+    // ── Prose ──
+    L.push(`I reviewed you${personPresentPhrase} this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
 
-    const examFindings = fullExam === "Yes" && skinExamFindings
-      ? ` I also noted the following on full skin examination: ${low(skinExamFindings)}.`
-      : "";
-    lines.push(`I conducted a full skin examination with ${chaperoneProsePhrase} present and did not notice any other lesions of concern.${examFindings}`);
-    lines.push("");
+    if (hobbies.includes("No outdoor hobbies")) {
+      L.push("You have no outdoor hobbies.");
+    } else if (hobbyProsePhrase) {
+      L.push(`You enjoy ${hobbyProsePhrase}.`);
+    }
+    L.push("");
+
+    if (fullExam === "Normal") {
+      L.push(`I conducted a full skin examination with ${chaperoneProsePhrase} present. There were no other lesions of concern.`);
+    } else if (fullExam === "Abnormal findings") {
+      L.push(`I conducted a full skin examination with ${chaperoneProsePhrase} present.${skinExamFindings ? ` I noted the following findings: ${low(skinExamFindings)}.` : ""}`);
+    }
+    L.push("");
 
     if (lesions[0]?.site) {
-      lines.push(`The lesion on the ${low(lesions[0].site)} is typical of a ${low(allDiagnoses[0]) || "[diagnosis]"}.`);
-      lines.push("");
+      L.push(`The lesion on the ${low(lesions[0].site)} is typical of a ${low(allDiagnoses[0]) || "[diagnosis]"}.`);
+      L.push("");
     }
-    lines.push(consultantSentence);
-    lines.push("");
-    lines.push("Management as above.\n");
-    lines.push("Please continue to monitor your skin regularly for any changes.\n");
-    lines.push(followUpParagraph);
-    lines.push("");
-    lines.push("Yours sincerely\n");
-    lines.push("Dr Harry Large");
-    lines.push("GPST3 in Dermatology");
-    lines.push("GMC: 7837565");
+    L.push(consultantSentence);
+    L.push("");
+    L.push("Management as above.\n");
+    L.push("Please continue to monitor your skin regularly for any changes.\n");
+    L.push(followUpParagraph);
+    L.push("");
+    L.push("Yours sincerely\n");
+    L.push("Dr Harry Large");
+    L.push("GPST3 in Dermatology");
+    L.push("GMC: 7837565");
 
-    return lines.join("\n");
-  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbiesText,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,followUpParagraph,personPresentPhrase,today]);
+    return L.join("\n");
+  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,followUpParagraph,personPresentPhrase,today]);
 
   const copyToClipboard = () => {
-    const text = generateLetter();
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard.writeText(generateLetter()).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
     });
   };
 
@@ -538,6 +577,7 @@ export default function ClinicLetterApp() {
     setConsultInvolvement(""); setConsultInvolved(""); setView("form");
   };
 
+  // ── Styles ────────────────────────────────────────────────────────────────
   const containerStyle = {
     maxWidth: 780, margin: "0 auto", fontFamily: "'DM Sans', sans-serif",
     background: "#f8f9fa", minHeight: "100vh", padding: "0 0 40px 0"
@@ -556,6 +596,8 @@ export default function ClinicLetterApp() {
     <div style={containerStyle}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
+      {settingsOpen && <SettingsModal settings={customSettings} onChange={saveSettings} onClose={() => setSettingsOpen(false)} />}
+
       {/* Header */}
       <div style={headerStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
@@ -564,6 +606,10 @@ export default function ClinicLetterApp() {
             <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>Dr Harry Large · {today}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setSettingsOpen(true)}
+              style={{ ...tabBtn, background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+              ⚙️ Settings
+            </button>
             <button onClick={() => setView("form")}
               style={{ ...tabBtn, background: view === "form" ? "#fff" : "rgba(255,255,255,0.15)", color: view === "form" ? "#1a5276" : "#fff" }}>
               📋 Form
@@ -585,31 +631,31 @@ export default function ClinicLetterApp() {
 
       {view === "form" ? (
         <div>
-          {/* --- CLINIC DETAILS --- */}
+          {/* CLINIC DETAILS */}
           <div style={cardStyle}>
             <SectionHeader icon="🏥">Clinic Details</SectionHeader>
             <SelectField label="Reason for attendance" required value={reason} onChange={setReason}
-              options={["Two-week wait skin cancer referral", "Follow up"]} allowFreeText />
+              options={s.reasonOptions} allowFreeText />
             <SelectField label="Responsible Consultant" required value={consultant} onChange={setConsultant}
-              options={["Dr Griffin", "Dr Stylianou"]} allowFreeText />
-            <CheckboxGroup label="Diagnosis" required options={DIAGNOSIS_OPTIONS}
+              options={s.consultantOptions} allowFreeText />
+            <CheckboxGroup label="Diagnosis" required options={s.diagnosisOptions}
               selected={diagnosis} onChange={setDiagnosis} allowFreeText freeText={diagnosisFree} onFreeTextChange={setDiagnosisFree} />
-            <CheckboxGroup label="Management plan" required options={MANAGEMENT_PLAN_OPTIONS}
+            <CheckboxGroup label="Management plan" required options={s.managementOptions}
               selected={managementPlan} onChange={setManagementPlan}
               allowFreeText freeText={managementPlanFree} onFreeTextChange={setManagementPlanFree} />
-            <CheckboxGroup label="Patient information provided" required options={PATIENT_INFO_OPTIONS}
+            <CheckboxGroup label="Patient information provided" required options={s.patientInfoOptions}
               selected={patientInfo} onChange={setPatientInfo} allowFreeText freeText={patientInfoFree} onFreeTextChange={setPatientInfoFree} />
-            <CheckboxGroup label="Actions for GP" required options={["Script", "None"]}
+            <CheckboxGroup label="Actions for GP" required options={s.gpActionsOptions}
               selected={gpActions} onChange={setGpActions} allowFreeText freeText={gpActionsFree} onFreeTextChange={setGpActionsFree} />
             <SelectField label="How will lesion be identified" value={lesionId} onChange={setLesionId}
               options={["N/A", "Patient to identify", "Clinical photography on PACS"]} allowFreeText />
             <SelectField label="Remain on TWW pathway" required value={twwPathway} onChange={setTwwPathway}
-              options={["Step down", "Remain on TWW pathway"]} />
+              options={s.twwOptions} />
             <SelectField label="Follow up" required value={followUp} onChange={setFollowUp}
-              options={["Discharge", "With results"]} allowFreeText />
+              options={s.followUpOptions} allowFreeText />
           </div>
 
-          {/* --- CLINICAL ASSESSMENT --- */}
+          {/* CLINICAL ASSESSMENT */}
           <div style={cardStyle}>
             <SectionHeader icon="🔍">Clinical Assessment</SectionHeader>
             <TextField label="Location" required value={location} onChange={handleLocationChange} placeholder="e.g. Left forearm" />
@@ -618,22 +664,19 @@ export default function ClinicLetterApp() {
               options={["Change in colour", "Change in size", "Change in texture"]}
               selected={reportedChange} onChange={setReportedChange}
               allowFreeText freeText={reportedChangeFree} onFreeTextChange={setReportedChangeFree} />
-            <CheckboxGroup label="Any symptoms" required options={SYMPTOM_OPTIONS}
+            <CheckboxGroup label="Any symptoms" required options={["None", "Itchy", "Bleeding", "Painful"]}
               selected={symptoms} onChange={setSymptoms}
               allowFreeText freeText={symptomsFree} onFreeTextChange={setSymptomsFree} />
           </div>
 
-          {/* --- RISK FACTORS --- */}
+          {/* RISK FACTORS */}
           <div style={cardStyle}>
             <SectionHeader icon="⚠️">Risk Factors</SectionHeader>
             <SelectOrFreeText label="Previous skin cancer" required value={prevCancer} onChange={setPrevCancer}
               options={["None", "Yes, previous BCC", "Yes, previous SCC", "Yes, previous melanoma"]} />
-            <SelectOrFreeText label="Family history" required value={familyHx} onChange={setFamilyHx}
-              options={["None"]} />
-            <SelectOrFreeText label="Immunosuppression" required value={immunosupp} onChange={setImmunosupp}
-              options={["None"]} />
-            <SelectField label="Skin type" required value={skinType} onChange={setSkinType}
-              options={SKIN_TYPES} allowFreeText />
+            <SelectOrFreeText label="Family history" required value={familyHx} onChange={setFamilyHx} options={["None"]} />
+            <SelectOrFreeText label="Immunosuppression" required value={immunosupp} onChange={setImmunosupp} options={["None"]} />
+            <SelectField label="Skin type" required value={skinType} onChange={setSkinType} options={SKIN_TYPES} allowFreeText />
             <SelectOrFreeText label="Sun exposure" required value={sunExposure} onChange={setSunExposure}
               options={["Minimal sun exposure", "Moderate sun exposure", "Marked sun exposure"]} />
             <SelectOrFreeText label="Sunbed use" required value={sunbed} onChange={setSunbed}
@@ -644,22 +687,18 @@ export default function ClinicLetterApp() {
               options={["Never", "Previously lived abroad"]} />
             <SelectOrFreeText label="Childhood sunburn" value={childhoodBurn} onChange={setChildhoodBurn}
               options={["Unknown", "No significant childhood sunburn"]} />
-            <CheckboxGroup label="Hobbies" options={HOBBY_OPTIONS}
+            <CheckboxGroup label="Hobbies" options={["No outdoor hobbies", ...s.hobbyOptions]}
               selected={hobbies} onChange={setHobbies}
               allowFreeText freeText={hobbiesFree} onFreeTextChange={setHobbiesFree} />
           </div>
 
-          {/* --- PATIENT DETAILS --- */}
+          {/* PATIENT DETAILS */}
           <div style={cardStyle}>
             <SectionHeader icon="👤">Patient Details</SectionHeader>
-            <SelectOrFreeText label="Relevant PMH" required value={pmh} onChange={setPmh}
-              options={["None"]} />
-            <SelectOrFreeText label="Antiplatelets/anticoagulation medication" required value={anticoag} onChange={setAnticoag}
-              options={["None"]} />
-            <SelectOrFreeText label="Allergies" required value={allergies} onChange={setAllergies}
-              options={["No known drug allergies"]} />
-            <SelectOrFreeText label="PPM/implanted device" required value={ppm} onChange={setPpm}
-              options={["None"]} />
+            <SelectOrFreeText label="Relevant PMH" required value={pmh} onChange={setPmh} options={["None"]} />
+            <SelectOrFreeText label="Antiplatelets/anticoagulation medication" required value={anticoag} onChange={setAnticoag} options={["None"]} />
+            <SelectOrFreeText label="Allergies" required value={allergies} onChange={setAllergies} options={["No known drug allergies"]} />
+            <SelectOrFreeText label="PPM/implanted device" required value={ppm} onChange={setPpm} options={["None"]} />
             <CheckboxGroup label="Social history" required options={SOCIAL_OPTIONS}
               selected={social} onChange={setSocial}
               allowFreeText freeText={socialFree} onFreeTextChange={setSocialFree} />
@@ -667,36 +706,33 @@ export default function ClinicLetterApp() {
               options={PERFORMANCE_STATUS} allowFreeText />
           </div>
 
-          {/* --- EXAMINATION --- */}
+          {/* EXAMINATION */}
           <div style={cardStyle}>
             <SectionHeader icon="🩺">Examination</SectionHeader>
             <TextField label="Person present — name (optional)" value={personName} onChange={setPersonName} placeholder="e.g. Jane" />
             <SelectField label="Person present — relation (optional)" value={personRelation} onChange={setPersonRelation}
               options={["Partner", "Spouse", "Husband", "Wife", "Mother", "Father", "Daughter", "Son", "Sister", "Brother", "Friend", "Carer"]}
               allowFreeText placeholder="Select relation..." />
-            <SelectOrFreeText label="Full skin examination performed" required value={fullExam} onChange={(v) => { setFullExam(v); if (v !== "Yes") setSkinExamFindings(""); }}
-              options={["Yes", "No"]} />
-            {fullExam === "Yes" && (
-              <TextField
-                label="Abnormal findings (leave blank if none)"
-                value={skinExamFindings}
-                onChange={setSkinExamFindings}
-                placeholder="Describe any abnormal findings..."
-                multiline
-              />
+            <SelectOrFreeText label="Full skin examination" required value={fullExam}
+              onChange={(v) => { setFullExam(v); if (v !== "Abnormal findings") setSkinExamFindings(""); }}
+              options={["Normal", "Abnormal findings", "No"]} />
+            {fullExam === "Abnormal findings" && (
+              <TextField label="Describe findings" value={skinExamFindings} onChange={setSkinExamFindings}
+                placeholder="Describe abnormal findings..." multiline />
             )}
-            <SelectOrFreeText label="Chaperone" required value={chaperone} onChange={(v) => { setChaperone(v); if (v !== "Yes") { setChaperoneName(""); setChaperoneRole(""); } }}
+            <SelectOrFreeText label="Chaperone" required value={chaperone}
+              onChange={(v) => { setChaperone(v); if (v !== "Yes") { setChaperoneName(""); setChaperoneRole(""); } }}
               options={["No at patient request", "Yes"]} />
             {chaperone === "Yes" && (
               <>
                 <TextField label="Chaperone name" value={chaperoneName} onChange={setChaperoneName} placeholder="Name of chaperone" />
                 <SelectField label="Chaperone role" value={chaperoneRole} onChange={setChaperoneRole}
-                  options={CHAPERONE_ROLES} allowFreeText placeholder="Select role..." />
+                  options={s.chaperoneRoleOptions} allowFreeText placeholder="Select role..." />
               </>
             )}
           </div>
 
-          {/* --- LESIONS --- */}
+          {/* LESION ASSESSMENT */}
           <div style={cardStyle}>
             <SectionHeader icon="🔬">Lesion Assessment</SectionHeader>
             {lesions.map((lesion, i) => (
@@ -713,8 +749,7 @@ export default function ClinicLetterApp() {
                 <TextField label="Size" required={i === 0} value={lesion.size}
                   onChange={v => updateLesion(i, "size", v)} placeholder="e.g. 8mm x 6mm" />
                 <CheckboxGroup label="Dermoscopy findings" required={i === 0}
-                  options={DERMOSCOPY_OPTIONS}
-                  selected={lesion.dermoscopy}
+                  options={DERMOSCOPY_OPTIONS} selected={lesion.dermoscopy}
                   onChange={v => updateLesion(i, "dermoscopy", v)}
                   allowFreeText freeText={lesion.dermoscopyFree}
                   onFreeTextChange={v => updateLesion(i, "dermoscopyFree", v)} />
@@ -726,23 +761,23 @@ export default function ClinicLetterApp() {
             </button>
           </div>
 
-          {/* --- CONSULTANT INVOLVEMENT --- */}
+          {/* CONSULTANT INVOLVEMENT */}
           <div style={cardStyle}>
             <SectionHeader icon="👨‍⚕️">Consultant Involvement</SectionHeader>
             <SelectField label="Consultant involvement" required value={consultInvolvement} onChange={setConsultInvolvement}
               options={["Discussion", "Review"]} />
             <SelectField label="Consultant involved" required value={consultInvolved} onChange={setConsultInvolved}
-              options={["Dr Griffin", "Dr Stylianou"]} allowFreeText />
+              options={s.consultantOptions} allowFreeText />
           </div>
 
-          {/* Generate button */}
+          {/* Actions */}
           <div style={{ padding: "16px 16px 0", display: "flex", gap: 10 }}>
             <button onClick={() => setView("letter")}
               style={{
                 flex: 1, padding: "14px 20px", borderRadius: 10, border: "none",
                 background: allFilled ? "linear-gradient(135deg, #1a5276, #2980b9)" : "#95a5a6",
-                color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: 15,
-                fontWeight: 700, cursor: "pointer", letterSpacing: 0.3,
+                color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 700,
+                cursor: "pointer", letterSpacing: 0.3,
                 boxShadow: allFilled ? "0 4px 12px rgba(26,82,118,0.3)" : "none"
               }}>
               ✉️ Preview Letter
@@ -783,9 +818,3 @@ export default function ClinicLetterApp() {
     </div>
   );
 }
-
-const tabBtn = {
-  padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-  fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13,
-  transition: "all 0.2s"
-};
