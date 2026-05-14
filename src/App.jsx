@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 
-// ─── Static / standardised lists (not user-editable) ───────────────────────
+// ─── Static / standardised lists ────────────────────────────────────────────
 const DERMOSCOPY_OPTIONS = [
   "Comedonal-like openings", "Milia-like cysts", "Fingerprint pattern",
   "Cerebriform surface", "Hairpin vessels", "Stuck-on appearance",
@@ -22,45 +22,42 @@ const SOCIAL_OPTIONS = [
 ];
 
 const SKIN_TYPES = [
-  "Type I - Highly sensitive, always burns, never tans",
-  "Type II - Very sun sensitive, burns easily, tans minimally",
-  "Type III - Sun sensitive skin, sometimes burns, slowly tans to light brown",
-  "Type IV - Minimally sun sensitive, burns minimally, always tans to moderate brown",
-  "Type V - Sun insensitive skin, rarely burns, tans well",
-  "Type VI - Sun insensitive, never burns, deeply pigmented"
+  { short: "Type I",   full: "Type I — Highly sensitive, always burns, never tans" },
+  { short: "Type II",  full: "Type II — Very sun sensitive, burns easily, tans minimally" },
+  { short: "Type III", full: "Type III — Sun sensitive, sometimes burns, slowly tans to light brown" },
+  { short: "Type IV",  full: "Type IV — Minimally sun sensitive, burns minimally, always tans to moderate brown" },
+  { short: "Type V",   full: "Type V — Sun insensitive, rarely burns, tans well" },
+  { short: "Type VI",  full: "Type VI — Sun insensitive, never burns, deeply pigmented" },
 ];
 
 const PERFORMANCE_STATUS = [
   "0 - Fully active, able to carry on all pre-disease performance without restriction",
-  "1 - Restricted in physically strenuous activity but ambulatory and able to carry out work of a light or sedentary nature",
-  "2 - Ambulatory and capable of all selfcare but unable to carry out any work activities; up and about more than 50% of waking hours",
-  "3 - Capable of only limited selfcare; confined to bed or chair more than 50% of waking hours",
+  "1 - Restricted in physically strenuous activity but ambulatory and able to carry out light or sedentary work",
+  "2 - Ambulatory and capable of all selfcare but unable to carry out any work; up and about >50% of waking hours",
+  "3 - Capable of only limited selfcare; confined to bed or chair >50% of waking hours",
   "4 - Completely disabled; cannot carry on any selfcare; totally confined to bed or chair",
   "5 - Dead"
 ];
 
-// ─── User-editable defaults (persisted to localStorage via customSettings) ──
+// ─── User-editable defaults ──────────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
-  reasonOptions:       ["Two-week wait skin cancer referral", "Follow up"],
-  consultantOptions:   ["Dr Griffin", "Dr Stylianou"],
-  diagnosisOptions:    ["Suspected basal cell carcinoma", "Suspected squamous cell carcinoma", "Suspected melanoma", "Seborrhoeic keratosis", "Actinic keratosis"],
-  managementOptions:   ["Reassurance and discharge", "Clinical photography", "Biopsy", "Referral to plastic surgeon", "Referral to Mohs surgeon", "Referral for excisional biopsy", "Referral for punch biopsy", "Referral for curette and cautery", "Cryotherapy", "Clinic review follow up"],
-  patientInfoOptions:  ["ABCDE mole check", "Sun safety", "Seborrhoeic keratosis", "Incisional biopsy", "Curette and cautery", "Punch biopsy", "Cryotherapy", "Efudix", "Actinic keratosis"],
-  gpActionsOptions:    ["Script", "None"],
-  twwOptions:          ["Step down", "Remain on TWW pathway"],
-  followUpOptions:     ["Discharge", "With results"],
-  chaperoneRoleOptions:["Nurse", "Healthcare assistant", "Medical student", "Clinic coordinator"],
-  // "No outdoor hobbies" is always prepended automatically in the form
-  hobbyOptions:        ["Gardening", "Horse riding", "Outdoor sports", "Watersports"],
+  reasonOptions:        ["Two-week wait skin cancer referral", "Follow up"],
+  consultantOptions:    ["Dr Griffin", "Dr Stylianou"],
+  diagnosisOptions:     ["Suspected basal cell carcinoma", "Suspected squamous cell carcinoma", "Suspected melanoma", "Seborrhoeic keratosis", "Actinic keratosis"],
+  managementOptions:    ["Reassurance and discharge", "Clinical photography", "Biopsy", "Referral to plastic surgeon", "Referral to Mohs surgeon", "Referral for excisional biopsy", "Referral for punch biopsy", "Referral for curette and cautery", "Cryotherapy", "Clinic review follow up"],
+  patientInfoOptions:   ["ABCDE mole check", "Sun safety", "Seborrhoeic keratosis", "Incisional biopsy", "Curette and cautery", "Punch biopsy", "Cryotherapy", "Efudix", "Actinic keratosis"],
+  gpActionsOptions:     ["Script", "None"],
+  twwOptions:           ["Step down", "Remain on TWW pathway"],
+  followUpOptions:      ["Discharge", "With results"],
+  chaperoneRoleOptions: ["Nurse", "Healthcare assistant", "Medical student", "Clinic coordinator"],
+  hobbyOptions:         ["Gardening", "Horse riding", "Outdoor sports", "Watersports"],
 };
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 const cap  = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 const low  = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-const joinMulti = (arr, free) => { const all = [...arr]; if (free) all.push(free); return all.join(", "); };
-const capJoin   = (arr, free) => cap(joinMulti(arr, free));
-
-// Formats ["Gardening","Horse riding","Watersports"] → "gardening, horse riding and watersports"
+const joinMulti  = (arr, free) => { const a = [...arr]; if (free) a.push(free); return a.join(", "); };
+const capJoin    = (arr, free) => cap(joinMulti(arr, free));
 const formatHobbyList = (arr, free) => {
   const items = [...arr.filter(h => h !== "No outdoor hobbies")];
   if (free) items.push(free);
@@ -69,17 +66,49 @@ const formatHobbyList = (arr, free) => {
   return items.slice(0, -1).map(h => h.toLowerCase()).join(", ") + " and " + items[items.length - 1].toLowerCase();
 };
 
-// ─── Reusable UI components ─────────────────────────────────────────────────
+// ─── Shared tokens ────────────────────────────────────────────────────────────
+const inputStyle = {
+  width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #d0d7e2",
+  fontFamily: "'DM Sans', sans-serif", fontSize: 13, outline: "none",
+  boxSizing: "border-box", background: "#fff", transition: "border-color 0.2s"
+};
+const tagStyle = {
+  padding: "6px 13px", borderRadius: 20, border: "1.5px solid", fontSize: 12,
+  fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.15s",
+  fontWeight: 500, whiteSpace: "nowrap", lineHeight: 1.4
+};
+const btnSmall = {
+  padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600
+};
+const tabBtn = {
+  padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+  fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13, transition: "all 0.2s"
+};
 
-function SectionHeader({ children, icon }) {
+// ─── Section accent palette ──────────────────────────────────────────────────
+const ACCENTS = {
+  clinic:      "#1a5276",
+  assessment:  "#0b6677",
+  risk:        "#935116",
+  patient:     "#6c3483",
+  examination: "#1f618d",
+  lesion:      "#78281f",
+  consultant:  "#1a5276",
+};
+
+// ─── Reusable UI components ──────────────────────────────────────────────────
+
+function SectionHeader({ children, icon, accent = "#1a5276" }) {
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 10,
-      padding: "10px 0", marginTop: 20, marginBottom: 8,
-      borderBottom: "2px solid #1a5276", color: "#1a5276",
-      fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: 0.3
+      display: "inline-flex", alignItems: "center", gap: 8,
+      padding: "7px 16px", marginTop: 0, marginBottom: 18,
+      background: accent + "18", border: `1px solid ${accent}35`,
+      borderRadius: 24, color: accent,
+      fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: 0.1
     }}>
-      <span style={{ fontSize: 20 }}>{icon}</span>{children}
+      <span style={{ fontSize: 16 }}>{icon}</span>{children}
     </div>
   );
 }
@@ -88,97 +117,171 @@ function FieldLabel({ required, children }) {
   return (
     <label style={{
       display: "block", fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
-      fontSize: 13, color: "#2c3e50", marginBottom: 4, letterSpacing: 0.2
+      fontSize: 12.5, color: "#4a5568", marginBottom: 5, letterSpacing: 0.15
     }}>
-      {required && <span style={{ color: "#c0392b", marginRight: 3 }}>!</span>}
+      {required && <span style={{ color: "#e53e3e", marginRight: 3, fontSize: 13 }}>!</span>}
       {children}
     </label>
   );
 }
 
-function SelectField({ label, required, value, onChange, options, placeholder, allowFreeText }) {
-  const [custom, setCustom] = useState(false);
-  const filled = value && value.length > 0;
-  const borderColor = required && !filled ? "#e74c3c" : filled ? "#27ae60" : "#bdc3c7";
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      {!custom ? (
-        <select value={value} onChange={e => { if (e.target.value === "__custom__") { setCustom(true); onChange(""); } else onChange(e.target.value); }}
-          style={{ ...inputStyle, borderColor }}>
-          <option value="">{placeholder || "Select..."}</option>
-          {options.map(o => <option key={o} value={o}>{o}</option>)}
-          {allowFreeText && <option value="__custom__">✏️ Free text...</option>}
-        </select>
-      ) : (
-        <div style={{ display: "flex", gap: 6 }}>
-          <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder="Type here..."
-            style={{ ...inputStyle, borderColor, flex: 1 }} autoFocus />
-          <button onClick={() => { setCustom(false); onChange(""); }} style={{ ...btnSmall, background: "#ecf0f1", color: "#7f8c8d" }}>↩</button>
-        </div>
-      )}
-    </div>
-  );
-}
+// Single-select button group (replaces SelectField / SelectOrFreeText for specified fields)
+function ButtonSelectGroup({ label, required, value, onChange, options, allowFreeText }) {
+  const [typing, setTyping] = useState(false);
+  const inOptions = options.includes(value);
+  const hasCustom  = !!value && !inOptions;
+  const showInput  = typing || hasCustom;
+  const filled     = !!value;
+  const borderColor = required && !filled ? "#fc8181" : filled ? "#68d391" : "#d0d7e2";
 
-function TextField({ label, required, value, onChange, placeholder, multiline }) {
-  const filled = value && value.length > 0;
-  const borderColor = required && !filled ? "#e74c3c" : filled ? "#27ae60" : "#bdc3c7";
-  const El = multiline ? "textarea" : "input";
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <El type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ""}
-        style={{ ...inputStyle, borderColor, ...(multiline ? { minHeight: 60, resize: "vertical" } : {}) }} />
-    </div>
-  );
-}
+  // Clear typing state if value is reset externally
+  useEffect(() => { if (!value) setTyping(false); }, [value]);
 
-function CheckboxGroup({ label, required, options, selected, onChange, allowFreeText, freeText, onFreeTextChange }) {
-  const filled = selected.length > 0 || (freeText && freeText.length > 0);
-  const borderColor = required && !filled ? "#e74c3c" : filled ? "#27ae60" : "#bdc3c7";
-  const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginBottom: 14 }}>
       <FieldLabel required={required}>{label}</FieldLabel>
-      <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 8, padding: 10, background: "#fff" }}>
+      <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 10, padding: "10px 10px 8px", background: "#fff", transition: "border-color 0.2s" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {options.map(o => (
-            <button key={o} onClick={() => toggle(o)}
-              style={{ ...tagStyle, background: selected.includes(o) ? "#1a5276" : "#f0f4f8", color: selected.includes(o) ? "#fff" : "#2c3e50", borderColor: selected.includes(o) ? "#1a5276" : "#d5dbe1" }}>
-              {selected.includes(o) ? "✓ " : ""}{o}
+            <button key={o} onClick={() => { onChange(value === o ? "" : o); setTyping(false); }}
+              style={{ ...tagStyle, background: value === o ? "#1a5276" : "#f0f4f8", color: value === o ? "#fff" : "#2d3748", borderColor: value === o ? "#1a5276" : "#d0d7e2", boxShadow: value === o ? "0 1px 4px rgba(26,82,118,0.3)" : "none" }}>
+              {value === o ? "✓ " : ""}{o}
             </button>
           ))}
+          {allowFreeText && !showInput && (
+            <button onClick={() => setTyping(true)}
+              style={{ ...tagStyle, background: "#f7fafc", color: "#a0aec0", borderColor: "#d0d7e2", borderStyle: "dashed" }}>
+              ✏️ Other…
+            </button>
+          )}
         </div>
-        {allowFreeText && (
-          <input type="text" value={freeText || ""} onChange={e => onFreeTextChange(e.target.value)}
-            placeholder="Additional (free text)..." style={{ ...inputStyle, marginTop: 8, fontSize: 12 }} />
+        {showInput && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <input type="text" value={value} onChange={e => onChange(e.target.value)}
+              placeholder="Type here…" style={{ ...inputStyle, flex: 1, fontSize: 12 }} autoFocus={!hasCustom} />
+            <button onClick={() => { setTyping(false); onChange(""); }}
+              style={{ ...btnSmall, background: "#edf2f7", color: "#718096" }}>↩</button>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
+// Multi-select checkbox group (unchanged behaviour, refreshed visuals)
+function CheckboxGroup({ label, required, options, selected, onChange, allowFreeText, freeText, onFreeTextChange }) {
+  const filled = selected.length > 0 || (freeText && freeText.length > 0);
+  const borderColor = required && !filled ? "#fc8181" : filled ? "#68d391" : "#d0d7e2";
+  const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 10, padding: "10px 10px 8px", background: "#fff", transition: "border-color 0.2s" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {options.map(o => (
+            <button key={o} onClick={() => toggle(o)}
+              style={{ ...tagStyle, background: selected.includes(o) ? "#1a5276" : "#f0f4f8", color: selected.includes(o) ? "#fff" : "#2d3748", borderColor: selected.includes(o) ? "#1a5276" : "#d0d7e2", boxShadow: selected.includes(o) ? "0 1px 4px rgba(26,82,118,0.3)" : "none" }}>
+              {selected.includes(o) ? "✓ " : ""}{o}
+            </button>
+          ))}
+        </div>
+        {allowFreeText && (
+          <input type="text" value={freeText || ""} onChange={e => onFreeTextChange(e.target.value)}
+            placeholder="Additional (free text)…" style={{ ...inputStyle, marginTop: 8, fontSize: 12 }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Compact skin type selector: shows Type I–VI as short buttons, reveals full text when selected
+function SkinTypeSelect({ required, value, onChange }) {
+  const filled     = !!value;
+  const selected   = SKIN_TYPES.find(t => t.full === value);
+  const borderColor = required && !filled ? "#fc8181" : filled ? "#68d391" : "#d0d7e2";
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <FieldLabel required={required}>Skin type</FieldLabel>
+      <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 10, padding: "10px 10px 8px", background: "#fff", transition: "border-color 0.2s" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {SKIN_TYPES.map(t => (
+            <button key={t.short} onClick={() => onChange(value === t.full ? "" : t.full)}
+              style={{ ...tagStyle, background: value === t.full ? "#1a5276" : "#f0f4f8", color: value === t.full ? "#fff" : "#2d3748", borderColor: value === t.full ? "#1a5276" : "#d0d7e2", boxShadow: value === t.full ? "0 1px 4px rgba(26,82,118,0.3)" : "none" }}>
+              {value === t.full ? "✓ " : ""}{t.short}
+            </button>
+          ))}
+        </div>
+        {selected && (
+          <div style={{ marginTop: 8, padding: "6px 10px", background: "#ebf5fb", borderRadius: 6, fontSize: 11.5, color: "#1a5276", fontFamily: "'DM Sans', sans-serif", lineHeight: 1.4 }}>
+            {selected.full}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Standard dropdown (kept for long lists: performance status, person relation, chaperone role)
+function SelectField({ label, required, value, onChange, options, placeholder, allowFreeText }) {
+  const [custom, setCustom] = useState(false);
+  const filled = !!value;
+  const borderColor = required && !filled ? "#fc8181" : filled ? "#68d391" : "#d0d7e2";
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      {!custom ? (
+        <select value={value} onChange={e => { if (e.target.value === "__custom__") { setCustom(true); onChange(""); } else onChange(e.target.value); }}
+          style={{ ...inputStyle, borderColor }}>
+          <option value="">{placeholder || "Select…"}</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+          {allowFreeText && <option value="__custom__">✏️ Free text…</option>}
+        </select>
+      ) : (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input type="text" value={value} onChange={e => onChange(e.target.value)}
+            placeholder="Type here…" style={{ ...inputStyle, flex: 1 }} autoFocus />
+          <button onClick={() => { setCustom(false); onChange(""); }} style={{ ...btnSmall, background: "#edf2f7", color: "#718096" }}>↩</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Simple text / textarea
+function TextField({ label, required, value, onChange, placeholder, multiline }) {
+  const filled = !!value;
+  const borderColor = required && !filled ? "#fc8181" : filled ? "#68d391" : "#d0d7e2";
+  const El = multiline ? "textarea" : "input";
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      <El type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ""}
+        style={{ ...inputStyle, borderColor, ...(multiline ? { minHeight: 64, resize: "vertical" } : {}) }} />
+    </div>
+  );
+}
+
+// SelectOrFreeText kept for examination fields (full exam, chaperone, PMH, etc.)
 function SelectOrFreeText({ label, required, value, onChange, options, placeholder }) {
   const [mode, setMode] = useState("select");
-  const filled = value && value.length > 0;
-  const borderColor = required && !filled ? "#e74c3c" : filled ? "#27ae60" : "#bdc3c7";
+  const filled = !!value;
+  const borderColor = required && !filled ? "#fc8181" : filled ? "#68d391" : "#d0d7e2";
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginBottom: 14 }}>
       <FieldLabel required={required}>{label}</FieldLabel>
       <div style={{ display: "flex", gap: 6 }}>
         {mode === "select" ? (
           <select value={value} onChange={e => { if (e.target.value === "__custom__") { setMode("free"); onChange(""); } else onChange(e.target.value); }}
             style={{ ...inputStyle, borderColor, flex: 1 }}>
-            <option value="">{placeholder || "Select..."}</option>
+            <option value="">{placeholder || "Select…"}</option>
             {options.map(o => <option key={o} value={o}>{o}</option>)}
-            <option value="__custom__">✏️ Free text...</option>
+            <option value="__custom__">✏️ Free text…</option>
           </select>
         ) : (
           <>
-            <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder="Type here..."
-              style={{ ...inputStyle, borderColor, flex: 1 }} autoFocus />
-            <button onClick={() => { setMode("select"); onChange(""); }} style={{ ...btnSmall, background: "#ecf0f1", color: "#7f8c8d" }}>↩</button>
+            <input type="text" value={value} onChange={e => onChange(e.target.value)}
+              placeholder="Type here…" style={{ ...inputStyle, borderColor, flex: 1 }} autoFocus />
+            <button onClick={() => { setMode("select"); onChange(""); }} style={{ ...btnSmall, background: "#edf2f7", color: "#718096" }}>↩</button>
           </>
         )}
       </div>
@@ -186,8 +289,7 @@ function SelectOrFreeText({ label, required, value, onChange, options, placehold
   );
 }
 
-// ─── Settings modal ──────────────────────────────────────────────────────────
-
+// ─── Settings modal ───────────────────────────────────────────────────────────
 const SETTINGS_SECTIONS = [
   { key: "reasonOptions",        label: "Reason for attendance" },
   { key: "consultantOptions",    label: "Responsible Consultant" },
@@ -203,55 +305,48 @@ const SETTINGS_SECTIONS = [
 
 function SettingsModal({ settings, onChange, onClose }) {
   const [drafts, setDrafts] = useState({});
-
   const remove = (key, item) => onChange({ ...settings, [key]: settings[key].filter(o => o !== item) });
-
   const add = (key) => {
     const val = (drafts[key] || "").trim();
     if (!val || settings[key].includes(val)) return;
     onChange({ ...settings, [key]: [...settings[key], val] });
     setDrafts(d => ({ ...d, [key]: "" }));
   };
-
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 300, overflowY: "auto", padding: "32px 16px" }}>
-      <div style={{ maxWidth: 600, margin: "0 auto", background: "#fff", borderRadius: 14, padding: "24px 24px 32px", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
-        {/* Header */}
+      <div style={{ maxWidth: 600, margin: "0 auto", background: "#fff", borderRadius: 16, padding: "26px 26px 32px", boxShadow: "0 12px 48px rgba(0,0,0,0.2)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 18, color: "#1a5276" }}>⚙️ Settings</div>
-          <button onClick={onClose} style={{ ...btnSmall, background: "#ecf0f1", color: "#555" }}>✕ Close</button>
+          <button onClick={onClose} style={{ ...btnSmall, background: "#edf2f7", color: "#555" }}>✕ Close</button>
         </div>
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#7f8c8d", marginTop: 0, marginBottom: 20 }}>
-          Customise the options in each list. Changes are saved to your browser and persist between sessions.
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#718096", marginTop: 0, marginBottom: 22 }}>
+          Customise options in each list. Changes are saved to your browser.
         </p>
-
         {SETTINGS_SECTIONS.map(({ key, label }) => (
-          <div key={key} style={{ marginBottom: 22, paddingBottom: 22, borderBottom: "1px solid #e8ecf0" }}>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 13, color: "#2c3e50", marginBottom: 8 }}>{label}</div>
+          <div key={key} style={{ marginBottom: 22, paddingBottom: 22, borderBottom: "1px solid #edf2f7" }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 13, color: "#2d3748", marginBottom: 8 }}>{label}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
               {(settings[key] || []).map(item => (
-                <span key={item} style={{ ...tagStyle, background: "#f0f4f8", color: "#2c3e50", borderColor: "#d5dbe1", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span key={item} style={{ ...tagStyle, background: "#f0f4f8", color: "#2d3748", borderColor: "#d0d7e2", display: "inline-flex", alignItems: "center", gap: 5 }}>
                   {item}
-                  <button onClick={() => remove(key, item)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#c0392b", padding: 0, fontSize: 13, lineHeight: 1, fontWeight: 700 }}>✕</button>
+                  <button onClick={() => remove(key, item)} style={{ background: "none", border: "none", cursor: "pointer", color: "#e53e3e", padding: 0, fontSize: 13, fontWeight: 700, lineHeight: 1 }}>✕</button>
                 </span>
               ))}
-              {(settings[key] || []).length === 0 && (
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#aaa", fontStyle: "italic" }}>No options — add one below</span>
+              {!(settings[key] || []).length && (
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#a0aec0", fontStyle: "italic" }}>No options — add one below</span>
               )}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <input type="text" value={drafts[key] || ""} placeholder="Add option..."
+              <input type="text" value={drafts[key] || ""} placeholder="Add option…"
                 onChange={e => setDrafts(d => ({ ...d, [key]: e.target.value }))}
                 onKeyDown={e => e.key === "Enter" && add(key)}
                 style={{ ...inputStyle, flex: 1, fontSize: 12 }} />
-              <button onClick={() => add(key)} style={{ ...btnSmall, background: "#1a5276", color: "#fff", padding: "6px 14px" }}>Add</button>
+              <button onClick={() => add(key)} style={{ ...btnSmall, background: "#1a5276", color: "#fff", padding: "6px 16px" }}>Add</button>
             </div>
           </div>
         ))}
-
         <button onClick={() => onChange(DEFAULT_SETTINGS)}
-          style={{ ...btnSmall, background: "#fee2e2", color: "#c0392b", width: "100%", padding: "10px 0", fontSize: 13, borderRadius: 8 }}>
+          style={{ ...btnSmall, background: "#fff5f5", color: "#e53e3e", border: "1px solid #fed7d7", width: "100%", padding: "10px 0", fontSize: 13, borderRadius: 8 }}>
           🗑 Reset all to defaults
         </button>
       </div>
@@ -259,114 +354,83 @@ function SettingsModal({ settings, onChange, onClose }) {
   );
 }
 
-// ─── Shared style tokens ─────────────────────────────────────────────────────
-const inputStyle = {
-  width: "100%", padding: "8px 12px", borderRadius: 7, border: "1.5px solid #bdc3c7",
-  fontFamily: "'DM Sans', sans-serif", fontSize: 13, outline: "none", boxSizing: "border-box",
-  transition: "border-color 0.2s", background: "#fff"
-};
-const tagStyle = {
-  padding: "5px 12px", borderRadius: 20, border: "1.5px solid", fontSize: 12,
-  fontFamily: "'DM Sans', sans-serif", cursor: "pointer", transition: "all 0.15s",
-  fontWeight: 500, whiteSpace: "nowrap"
-};
-const btnSmall = {
-  padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer",
-  fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600
-};
-const tabBtn = {
-  padding: "7px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-  fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13, transition: "all 0.2s"
-};
-
-// ─── Main app ────────────────────────────────────────────────────────────────
-
+// ─── Main app ─────────────────────────────────────────────────────────────────
 export default function ClinicLetterApp() {
-  // Settings (persisted to localStorage)
+  // Settings
   const [customSettings, setCustomSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem("clinicLetterSettings");
-      if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
-    } catch {}
+    try { const s = localStorage.getItem("clinicLetterSettings"); if (s) return { ...DEFAULT_SETTINGS, ...JSON.parse(s) }; } catch {}
     return DEFAULT_SETTINGS;
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  const saveSettings = (next) => {
-    setCustomSettings(next);
-    try { localStorage.setItem("clinicLetterSettings", JSON.stringify(next)); } catch {}
-  };
-
-  const s = customSettings; // shorthand throughout JSX
+  const saveSettings = (next) => { setCustomSettings(next); try { localStorage.setItem("clinicLetterSettings", JSON.stringify(next)); } catch {} };
+  const s = customSettings;
 
   // ── Clinic details ──
-  const [reason, setReason]                   = useState("");
-  const [consultant, setConsultant]           = useState("");
-  const [diagnosis, setDiagnosis]             = useState([]);
-  const [diagnosisFree, setDiagnosisFree]     = useState("");
-  const [managementPlan, setManagementPlan]   = useState([]);
+  const [reason, setReason]                         = useState("");
+  const [consultant, setConsultant]                 = useState("");
+  const [diagnosis, setDiagnosis]                   = useState([]);
+  const [diagnosisFree, setDiagnosisFree]           = useState("");
+  const [managementPlan, setManagementPlan]         = useState([]);
   const [managementPlanFree, setManagementPlanFree] = useState("");
-  const [patientInfo, setPatientInfo]         = useState(["ABCDE mole check", "Sun safety"]);
-  const [patientInfoFree, setPatientInfoFree] = useState("");
-  const [gpActions, setGpActions]             = useState([]);
-  const [gpActionsFree, setGpActionsFree]     = useState("");
-  const [lesionId, setLesionId]               = useState("");
-  const [twwPathway, setTwwPathway]           = useState("");
-  const [followUp, setFollowUp]               = useState("");
+  const [patientInfo, setPatientInfo]               = useState(["ABCDE mole check", "Sun safety"]);
+  const [patientInfoFree, setPatientInfoFree]       = useState("");
+  const [gpActions, setGpActions]                   = useState([]);
+  const [gpActionsFree, setGpActionsFree]           = useState("");
+  const [lesionId, setLesionId]                     = useState("");
+  const [twwPathway, setTwwPathway]                 = useState("");
+  const [followUp, setFollowUp]                     = useState("");
 
   // ── Clinical assessment ──
-  const [location, setLocation]               = useState("");
-  const [duration, setDuration]               = useState("");
-  const [reportedChange, setReportedChange]   = useState([]);
+  const [location, setLocation]                     = useState("");
+  const [duration, setDuration]                     = useState("");
+  const [reportedChange, setReportedChange]         = useState([]);
   const [reportedChangeFree, setReportedChangeFree] = useState("");
-  const [symptoms, setSymptoms]               = useState([]);
-  const [symptomsFree, setSymptomsFree]       = useState("");
+  const [symptoms, setSymptoms]                     = useState([]);
+  const [symptomsFree, setSymptomsFree]             = useState("");
 
   // ── Risk factors ──
-  const [prevCancer, setPrevCancer]           = useState("");
-  const [familyHx, setFamilyHx]               = useState("");
-  const [immunosupp, setImmunosupp]           = useState("");
-  const [skinType, setSkinType]               = useState("");
-  const [sunExposure, setSunExposure]         = useState("");
-  const [sunbed, setSunbed]                   = useState("");
-  const [workedOutside, setWorkedOutside]     = useState("");
-  const [livedAbroad, setLivedAbroad]         = useState("");
-  const [childhoodBurn, setChildhoodBurn]     = useState("");
-  const [hobbies, setHobbies]                 = useState([]);
-  const [hobbiesFree, setHobbiesFree]         = useState("");
+  const [prevCancer, setPrevCancer]         = useState("");
+  const [familyHx, setFamilyHx]             = useState("");
+  const [immunosupp, setImmunosupp]         = useState("");
+  const [skinType, setSkinType]             = useState("");
+  const [sunExposure, setSunExposure]       = useState("");
+  const [sunbed, setSunbed]                 = useState("");
+  const [workedOutside, setWorkedOutside]   = useState("");
+  const [livedAbroad, setLivedAbroad]       = useState("");
+  const [childhoodBurn, setChildhoodBurn]   = useState("");
+  const [hobbies, setHobbies]               = useState([]);
+  const [hobbiesFree, setHobbiesFree]       = useState("");
 
   // ── Patient details ──
-  const [pmh, setPmh]                         = useState("");
-  const [anticoag, setAnticoag]               = useState("");
-  const [allergies, setAllergies]             = useState("");
-  const [ppm, setPpm]                         = useState("");
-  const [social, setSocial]                   = useState([]);
-  const [socialFree, setSocialFree]           = useState("");
-  const [perfStatus, setPerfStatus]           = useState("");
+  const [pmh, setPmh]               = useState("");
+  const [anticoag, setAnticoag]     = useState("");
+  const [allergies, setAllergies]   = useState("");
+  const [ppm, setPpm]               = useState("");
+  const [social, setSocial]         = useState([]);
+  const [socialFree, setSocialFree] = useState("");
+  const [perfStatus, setPerfStatus] = useState("");
 
   // ── Examination ──
-  // fullExam: "Normal" | "Abnormal findings" | "No" | ""
-  const [fullExam, setFullExam]               = useState("");
-  const [skinExamFindings, setSkinExamFindings] = useState("");
-  const [chaperone, setChaperone]             = useState("");
-  const [chaperoneName, setChaperoneName]     = useState("");
-  const [chaperoneRole, setChaperoneRole]     = useState("");
-  const [personName, setPersonName]           = useState("");
-  const [personRelation, setPersonRelation]   = useState("");
+  const [fullExam, setFullExam]                   = useState("");
+  const [skinExamFindings, setSkinExamFindings]   = useState("");
+  const [chaperone, setChaperone]                 = useState("");
+  const [chaperoneName, setChaperoneName]         = useState("");
+  const [chaperoneRole, setChaperoneRole]         = useState("");
+  const [personName, setPersonName]               = useState("");
+  const [personRelation, setPersonRelation]       = useState("");
 
-  // ── Lesions (lesion 0 site synced from location) ──
+  // ── Lesions ──
   const [lesions, setLesions] = useState([{ site: "", size: "", dermoscopy: [], dermoscopyFree: "" }]);
 
   // ── Consultant involvement ──
   const [consultInvolvement, setConsultInvolvement] = useState("");
   const [consultInvolved, setConsultInvolved]       = useState("");
 
-  // ── UI state ──
+  // ── UI ──
   const [view, setView]     = useState("form");
   const [copied, setCopied] = useState(false);
   const letterRef           = useRef(null);
 
-  // Sync location → lesion 1 site
   const handleLocationChange = (val) => {
     setLocation(val);
     setLesions(prev => { const c = [...prev]; c[0] = { ...c[0], site: val }; return c; });
@@ -374,15 +438,11 @@ export default function ClinicLetterApp() {
 
   const addLesion    = () => setLesions([...lesions, { site: "", size: "", dermoscopy: [], dermoscopyFree: "" }]);
   const removeLesion = (i) => { if (lesions.length > 1) setLesions(lesions.filter((_, idx) => idx !== i)); };
-  const updateLesion = (i, field, val) => { const c = [...lesions]; c[i] = { ...c[i], [field]: val }; setLesions(c); };
+  const updateLesion = (i, f, v) => { const c = [...lesions]; c[i] = { ...c[i], [f]: v }; setLesions(c); };
 
-  const allDiagnoses = useMemo(() => {
-    const d = [...diagnosis]; if (diagnosisFree) d.push(diagnosisFree); return d;
-  }, [diagnosis, diagnosisFree]);
-
+  const allDiagnoses = useMemo(() => { const d = [...diagnosis]; if (diagnosisFree) d.push(diagnosisFree); return d; }, [diagnosis, diagnosisFree]);
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
-  // Validation
   const requiredFields = useMemo(() => ([
     { name: "Reason for attendance",  ok: !!reason },
     { name: "Responsible Consultant", ok: !!consultant },
@@ -422,7 +482,6 @@ export default function ClinicLetterApp() {
   const allFilled   = filledCount === totalCount;
   const diagLabel   = allDiagnoses.length > 1 ? "Diagnoses" : "Diagnosis";
 
-  // Derived display values
   const chaperoneText = useMemo(() => {
     if (chaperone === "No at patient request") return "No at patient request";
     if (chaperone === "Yes") return `Yes, by ${chaperoneName || "[name]"}${chaperoneRole ? ` (${chaperoneRole})` : ""}`;
@@ -437,13 +496,12 @@ export default function ClinicLetterApp() {
 
   const fullExamStructured = useMemo(() => {
     if (fullExam === "No")               return "No, patient kindly declined offer and has capacity";
-    if (fullExam === "Normal")           return "Yes - no abnormal findings";
-    if (fullExam === "Abnormal findings") return skinExamFindings ? `Yes - abnormal findings noted: ${cap(skinExamFindings)}` : "Yes - abnormal findings (not described)";
+    if (fullExam === "Normal")           return "Yes — no abnormal findings";
+    if (fullExam === "Abnormal findings") return skinExamFindings ? `Yes — abnormal findings: ${cap(skinExamFindings)}` : "Yes — abnormal findings (not described)";
     return fullExam;
   }, [fullExam, skinExamFindings]);
 
-  // Hobbies — structured list and prose-friendly natural-language phrase
-  const hobbyListText   = hobbies.includes("No outdoor hobbies") ? "No outdoor hobbies" : joinMulti(hobbies.filter(h => h !== "No outdoor hobbies"), hobbiesFree);
+  const hobbyListText    = hobbies.includes("No outdoor hobbies") ? "No outdoor hobbies" : joinMulti(hobbies.filter(h => h !== "No outdoor hobbies"), hobbiesFree);
   const hobbyProsePhrase = useMemo(() => formatHobbyList(hobbies, hobbiesFree), [hobbies, hobbiesFree]);
 
   const personPresentPhrase = useMemo(() => {
@@ -466,7 +524,6 @@ export default function ClinicLetterApp() {
       : "If you remain under dermatology follow-up, please contact using the details at the top of this letter. Waiting times for procedures can be long therefore if you notice any significant increase in size of the growth or develop new symptoms such as pain or bleeding please contact us urgently on the above number."
   , [followUp]);
 
-  // ── Letter generation ──────────────────────────────────────────────────────
   const generateLetter = useCallback(() => {
     const L = [];
     L.push(`Date: ${today}`);
@@ -482,13 +539,11 @@ export default function ClinicLetterApp() {
     L.push(`How will lesion be identified: ${cap(lesionId) || "N/A"}\n`);
     L.push(`Remain on TWW pathway: ${cap(twwPathway) || "[Not specified]"}\n`);
     L.push(`Follow up: ${cap(followUp) || "[Not specified]"}\n`);
-
     L.push("Clinical Assessment");
     L.push(`Location: ${cap(location) || "[Not specified]"}`);
     L.push(`Duration: ${cap(duration) || "[Not specified]"}`);
     L.push(`Reported change: ${capJoin(reportedChange, reportedChangeFree) || "[Not specified]"}`);
     L.push(`Any symptoms: ${capJoin(symptoms, symptomsFree) || "[Not specified]"}\n`);
-
     L.push("Risk factors");
     L.push(`Previous skin cancer: ${cap(prevCancer) || "[Not specified]"}`);
     L.push(`Family history: ${cap(familyHx) || "[Not specified]"}`);
@@ -500,7 +555,6 @@ export default function ClinicLetterApp() {
     L.push(`Lived abroad: ${cap(livedAbroad) || "Never"}`);
     L.push(`Childhood sunburn: ${cap(childhoodBurn) || "Unknown"}`);
     L.push(`Hobbies: ${cap(hobbyListText) || "[Not specified]"}\n`);
-
     L.push("Patient details");
     L.push(`Relevant PMH: ${cap(pmh) || "[Not specified]"}`);
     L.push(`Antiplatelets/anticoagulation medication: ${cap(anticoag) || "[Not specified]"}`);
@@ -508,39 +562,27 @@ export default function ClinicLetterApp() {
     L.push(`PPM/implanted device: ${cap(ppm) || "[Not specified]"}`);
     L.push(`Social history: ${capJoin(social, socialFree) || "[Not specified]"}`);
     L.push(`Performance status: ${cap(perfStatus) || "[Not specified]"}\n`);
-
     L.push("Examination");
     L.push(`Full skin examination performed: ${fullExamStructured || "[Not specified]"}`);
     L.push(`Chaperone: ${chaperoneText || "[Not specified]"}\n`);
-
     lesions.forEach((l, i) => {
       L.push(`Lesion ${i + 1}:`);
       L.push(`Site: ${cap(l.site) || "[Not specified]"}`);
       L.push(`Size: ${cap(l.size) || "[Not specified]"}`);
       L.push(`Dermoscopy findings: ${capJoin(l.dermoscopy, l.dermoscopyFree) || "[Not specified]"}\n`);
     });
-
-    // ── Prose ──
+    // Prose
     L.push(`I reviewed you${personPresentPhrase} this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
-
-    if (hobbies.includes("No outdoor hobbies")) {
-      L.push("You have no outdoor hobbies.");
-    } else if (hobbyProsePhrase) {
-      L.push(`You enjoy ${hobbyProsePhrase}.`);
-    }
+    if (hobbies.includes("No outdoor hobbies")) L.push("You have no outdoor hobbies.");
+    else if (hobbyProsePhrase) L.push(`You enjoy ${hobbyProsePhrase}.`);
     L.push("");
-
     if (fullExam === "Normal") {
       L.push(`I conducted a full skin examination with ${chaperoneProsePhrase} present. There were no other lesions of concern.`);
     } else if (fullExam === "Abnormal findings") {
       L.push(`I conducted a full skin examination with ${chaperoneProsePhrase} present.${skinExamFindings ? ` I noted the following findings: ${low(skinExamFindings)}.` : ""}`);
     }
     L.push("");
-
-    if (lesions[0]?.site) {
-      L.push(`The lesion on the ${low(lesions[0].site)} is typical of a ${low(allDiagnoses[0]) || "[diagnosis]"}.`);
-      L.push("");
-    }
+    if (lesions[0]?.site) { L.push(`The lesion on the ${low(lesions[0].site)} is typical of a ${low(allDiagnoses[0]) || "[diagnosis]"}.`); L.push(""); }
     L.push(consultantSentence);
     L.push("");
     L.push("Management as above.\n");
@@ -551,14 +593,11 @@ export default function ClinicLetterApp() {
     L.push("Dr Harry Large");
     L.push("GPST3 in Dermatology");
     L.push("GMC: 7837565");
-
     return L.join("\n");
   }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,followUpParagraph,personPresentPhrase,today]);
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(generateLetter()).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(generateLetter()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
   const resetForm = () => {
@@ -577,66 +616,67 @@ export default function ClinicLetterApp() {
     setConsultInvolvement(""); setConsultInvolved(""); setView("form");
   };
 
-  // ── Styles ────────────────────────────────────────────────────────────────
-  const containerStyle = {
-    maxWidth: 780, margin: "0 auto", fontFamily: "'DM Sans', sans-serif",
-    background: "#f8f9fa", minHeight: "100vh", padding: "0 0 40px 0"
-  };
-  const headerStyle = {
-    background: "linear-gradient(135deg, #1a5276 0%, #2980b9 100%)",
-    padding: "24px 28px 18px", color: "#fff", position: "sticky", top: 0, zIndex: 100,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.15)"
-  };
-  const cardStyle = {
-    background: "#fff", borderRadius: 10, padding: "18px 22px", margin: "12px 16px",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #e8ecf0"
-  };
+  // Card builder with per-section accent
+  const card = (accent) => ({
+    background: "#fff", borderRadius: 14, padding: "22px 24px", margin: "10px 14px",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.07)", border: "1px solid #edf2f7",
+    borderTop: `3px solid ${accent}`
+  });
 
   return (
-    <div style={containerStyle}>
+    <div style={{ maxWidth: 800, margin: "0 auto", fontFamily: "'DM Sans', sans-serif", background: "#f0f4f8", minHeight: "100vh", padding: "0 0 48px" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
       {settingsOpen && <SettingsModal settings={customSettings} onChange={saveSettings} onClose={() => setSettingsOpen(false)} />}
 
-      {/* Header */}
-      <div style={headerStyle}>
+      {/* ── Header ── */}
+      <div style={{
+        background: "linear-gradient(135deg, #1a3a5c 0%, #1a5276 50%, #2471a3 100%)",
+        padding: "22px 26px 16px", color: "#fff", position: "sticky", top: 0, zIndex: 100,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
+      }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.3 }}>TWW Skin Cancer Clinic</div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>Dr Harry Large · {today}</div>
+            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: -0.5 }}>TWW Skin Cancer Clinic</div>
+            <div style={{ fontSize: 11.5, opacity: 0.75, marginTop: 2, letterSpacing: 0.3 }}>Dr Harry Large · {today}</div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
             <button onClick={() => setSettingsOpen(true)}
-              style={{ ...tabBtn, background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+              style={{ ...tabBtn, background: "rgba(255,255,255,0.12)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)" }}>
               ⚙️ Settings
             </button>
             <button onClick={() => setView("form")}
-              style={{ ...tabBtn, background: view === "form" ? "#fff" : "rgba(255,255,255,0.15)", color: view === "form" ? "#1a5276" : "#fff" }}>
+              style={{ ...tabBtn, background: view === "form" ? "#fff" : "rgba(255,255,255,0.12)", color: view === "form" ? "#1a5276" : "#fff", border: view === "form" ? "none" : "1px solid rgba(255,255,255,0.2)" }}>
               📋 Form
             </button>
             <button onClick={() => setView("letter")}
-              style={{ ...tabBtn, background: view === "letter" ? "#fff" : "rgba(255,255,255,0.15)", color: view === "letter" ? "#1a5276" : "#fff" }}>
+              style={{ ...tabBtn, background: view === "letter" ? "#fff" : "rgba(255,255,255,0.12)", color: view === "letter" ? "#1a5276" : "#fff", border: view === "letter" ? "none" : "1px solid rgba(255,255,255,0.2)" }}>
               ✉️ Letter
             </button>
           </div>
         </div>
-        <div style={{ marginTop: 12, background: "rgba(255,255,255,0.2)", borderRadius: 20, height: 8, overflow: "hidden" }}>
-          <div style={{ width: `${(filledCount / totalCount) * 100}%`, height: "100%", background: allFilled ? "#2ecc71" : "#f1c40f", borderRadius: 20, transition: "width 0.3s" }} />
-        </div>
-        <div style={{ fontSize: 11, marginTop: 4, opacity: 0.8 }}>
-          {filledCount}/{totalCount} required fields completed
-          {!allFilled && <span style={{ marginLeft: 8, color: "#f1c40f" }}>⚠ Complete all required fields</span>}
+        {/* Progress */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+            <span style={{ fontSize: 11, opacity: 0.8 }}>{filledCount}/{totalCount} required fields</span>
+            {allFilled
+              ? <span style={{ fontSize: 11, color: "#6ee7b7", fontWeight: 600 }}>✓ Ready to generate</span>
+              : <span style={{ fontSize: 11, color: "#fcd34d" }}>⚠ {totalCount - filledCount} remaining</span>}
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 20, height: 6 }}>
+            <div style={{ width: `${(filledCount / totalCount) * 100}%`, height: "100%", background: allFilled ? "#34d399" : "#fbbf24", borderRadius: 20, transition: "width 0.3s ease" }} />
+          </div>
         </div>
       </div>
 
       {view === "form" ? (
         <div>
-          {/* CLINIC DETAILS */}
-          <div style={cardStyle}>
-            <SectionHeader icon="🏥">Clinic Details</SectionHeader>
-            <SelectField label="Reason for attendance" required value={reason} onChange={setReason}
+          {/* ── CLINIC DETAILS ── */}
+          <div style={card(ACCENTS.clinic)}>
+            <SectionHeader icon="🏥" accent={ACCENTS.clinic}>Clinic Details</SectionHeader>
+            <ButtonSelectGroup label="Reason for attendance" required value={reason} onChange={setReason}
               options={s.reasonOptions} allowFreeText />
-            <SelectField label="Responsible Consultant" required value={consultant} onChange={setConsultant}
+            <ButtonSelectGroup label="Responsible Consultant" required value={consultant} onChange={setConsultant}
               options={s.consultantOptions} allowFreeText />
             <CheckboxGroup label="Diagnosis" required options={s.diagnosisOptions}
               selected={diagnosis} onChange={setDiagnosis} allowFreeText freeText={diagnosisFree} onFreeTextChange={setDiagnosisFree} />
@@ -647,17 +687,17 @@ export default function ClinicLetterApp() {
               selected={patientInfo} onChange={setPatientInfo} allowFreeText freeText={patientInfoFree} onFreeTextChange={setPatientInfoFree} />
             <CheckboxGroup label="Actions for GP" required options={s.gpActionsOptions}
               selected={gpActions} onChange={setGpActions} allowFreeText freeText={gpActionsFree} onFreeTextChange={setGpActionsFree} />
-            <SelectField label="How will lesion be identified" value={lesionId} onChange={setLesionId}
+            <ButtonSelectGroup label="How will lesion be identified" value={lesionId} onChange={setLesionId}
               options={["N/A", "Patient to identify", "Clinical photography on PACS"]} allowFreeText />
-            <SelectField label="Remain on TWW pathway" required value={twwPathway} onChange={setTwwPathway}
+            <ButtonSelectGroup label="Remain on TWW pathway" required value={twwPathway} onChange={setTwwPathway}
               options={s.twwOptions} />
-            <SelectField label="Follow up" required value={followUp} onChange={setFollowUp}
+            <ButtonSelectGroup label="Follow up" required value={followUp} onChange={setFollowUp}
               options={s.followUpOptions} allowFreeText />
           </div>
 
-          {/* CLINICAL ASSESSMENT */}
-          <div style={cardStyle}>
-            <SectionHeader icon="🔍">Clinical Assessment</SectionHeader>
+          {/* ── CLINICAL ASSESSMENT ── */}
+          <div style={card(ACCENTS.assessment)}>
+            <SectionHeader icon="🔍" accent={ACCENTS.assessment}>Clinical Assessment</SectionHeader>
             <TextField label="Location" required value={location} onChange={handleLocationChange} placeholder="e.g. Left forearm" />
             <TextField label="Duration" required value={duration} onChange={setDuration} placeholder="e.g. 6 months" />
             <CheckboxGroup label="Reported change" required
@@ -669,36 +709,38 @@ export default function ClinicLetterApp() {
               allowFreeText freeText={symptomsFree} onFreeTextChange={setSymptomsFree} />
           </div>
 
-          {/* RISK FACTORS */}
-          <div style={cardStyle}>
-            <SectionHeader icon="⚠️">Risk Factors</SectionHeader>
-            <SelectOrFreeText label="Previous skin cancer" required value={prevCancer} onChange={setPrevCancer}
-              options={["None", "Yes, previous BCC", "Yes, previous SCC", "Yes, previous melanoma"]} />
-            <SelectOrFreeText label="Family history" required value={familyHx} onChange={setFamilyHx} options={["None"]} />
-            <SelectOrFreeText label="Immunosuppression" required value={immunosupp} onChange={setImmunosupp} options={["None"]} />
-            <SelectField label="Skin type" required value={skinType} onChange={setSkinType} options={SKIN_TYPES} allowFreeText />
-            <SelectOrFreeText label="Sun exposure" required value={sunExposure} onChange={setSunExposure}
-              options={["Minimal sun exposure", "Moderate sun exposure", "Marked sun exposure"]} />
-            <SelectOrFreeText label="Sunbed use" required value={sunbed} onChange={setSunbed}
-              options={["Never", "Minimal previous use", "Regular user"]} />
-            <SelectOrFreeText label="Worked outside" value={workedOutside} onChange={setWorkedOutside}
-              options={["Never", "Previously worked outside"]} />
-            <SelectOrFreeText label="Lived abroad" value={livedAbroad} onChange={setLivedAbroad}
-              options={["Never", "Previously lived abroad"]} />
-            <SelectOrFreeText label="Childhood sunburn" value={childhoodBurn} onChange={setChildhoodBurn}
-              options={["Unknown", "No significant childhood sunburn"]} />
+          {/* ── RISK FACTORS ── */}
+          <div style={card(ACCENTS.risk)}>
+            <SectionHeader icon="⚠️" accent={ACCENTS.risk}>Risk Factors</SectionHeader>
+            <ButtonSelectGroup label="Previous skin cancer" required value={prevCancer} onChange={setPrevCancer}
+              options={["None", "Yes, previous BCC", "Yes, previous SCC", "Yes, previous melanoma"]} allowFreeText />
+            <ButtonSelectGroup label="Family history" required value={familyHx} onChange={setFamilyHx}
+              options={["None"]} allowFreeText />
+            <ButtonSelectGroup label="Immunosuppression" required value={immunosupp} onChange={setImmunosupp}
+              options={["None"]} allowFreeText />
+            <SkinTypeSelect required value={skinType} onChange={setSkinType} />
+            <ButtonSelectGroup label="Sun exposure" required value={sunExposure} onChange={setSunExposure}
+              options={["Minimal sun exposure", "Moderate sun exposure", "Marked sun exposure"]} allowFreeText />
+            <ButtonSelectGroup label="Sunbed use" required value={sunbed} onChange={setSunbed}
+              options={["Never", "Minimal previous use", "Regular user"]} allowFreeText />
+            <ButtonSelectGroup label="Worked outside" value={workedOutside} onChange={setWorkedOutside}
+              options={["Never", "Previously worked outside"]} allowFreeText />
+            <ButtonSelectGroup label="Lived abroad" value={livedAbroad} onChange={setLivedAbroad}
+              options={["Never", "Previously lived abroad"]} allowFreeText />
+            <ButtonSelectGroup label="Childhood sunburn" value={childhoodBurn} onChange={setChildhoodBurn}
+              options={["Unknown", "No significant childhood sunburn"]} allowFreeText />
             <CheckboxGroup label="Hobbies" options={["No outdoor hobbies", ...s.hobbyOptions]}
               selected={hobbies} onChange={setHobbies}
               allowFreeText freeText={hobbiesFree} onFreeTextChange={setHobbiesFree} />
           </div>
 
-          {/* PATIENT DETAILS */}
-          <div style={cardStyle}>
-            <SectionHeader icon="👤">Patient Details</SectionHeader>
+          {/* ── PATIENT DETAILS ── */}
+          <div style={card(ACCENTS.patient)}>
+            <SectionHeader icon="👤" accent={ACCENTS.patient}>Patient Details</SectionHeader>
             <SelectOrFreeText label="Relevant PMH" required value={pmh} onChange={setPmh} options={["None"]} />
-            <SelectOrFreeText label="Antiplatelets/anticoagulation medication" required value={anticoag} onChange={setAnticoag} options={["None"]} />
+            <SelectOrFreeText label="Antiplatelets / anticoagulation" required value={anticoag} onChange={setAnticoag} options={["None"]} />
             <SelectOrFreeText label="Allergies" required value={allergies} onChange={setAllergies} options={["No known drug allergies"]} />
-            <SelectOrFreeText label="PPM/implanted device" required value={ppm} onChange={setPpm} options={["None"]} />
+            <SelectOrFreeText label="PPM / implanted device" required value={ppm} onChange={setPpm} options={["None"]} />
             <CheckboxGroup label="Social history" required options={SOCIAL_OPTIONS}
               selected={social} onChange={setSocial}
               allowFreeText freeText={socialFree} onFreeTextChange={setSocialFree} />
@@ -706,19 +748,19 @@ export default function ClinicLetterApp() {
               options={PERFORMANCE_STATUS} allowFreeText />
           </div>
 
-          {/* EXAMINATION */}
-          <div style={cardStyle}>
-            <SectionHeader icon="🩺">Examination</SectionHeader>
+          {/* ── EXAMINATION ── */}
+          <div style={card(ACCENTS.examination)}>
+            <SectionHeader icon="🩺" accent={ACCENTS.examination}>Examination</SectionHeader>
             <TextField label="Person present — name (optional)" value={personName} onChange={setPersonName} placeholder="e.g. Jane" />
             <SelectField label="Person present — relation (optional)" value={personRelation} onChange={setPersonRelation}
               options={["Partner", "Spouse", "Husband", "Wife", "Mother", "Father", "Daughter", "Son", "Sister", "Brother", "Friend", "Carer"]}
-              allowFreeText placeholder="Select relation..." />
+              allowFreeText placeholder="Select relation…" />
             <SelectOrFreeText label="Full skin examination" required value={fullExam}
               onChange={(v) => { setFullExam(v); if (v !== "Abnormal findings") setSkinExamFindings(""); }}
               options={["Normal", "Abnormal findings", "No"]} />
             {fullExam === "Abnormal findings" && (
               <TextField label="Describe findings" value={skinExamFindings} onChange={setSkinExamFindings}
-                placeholder="Describe abnormal findings..." multiline />
+                placeholder="Describe abnormal findings…" multiline />
             )}
             <SelectOrFreeText label="Chaperone" required value={chaperone}
               onChange={(v) => { setChaperone(v); if (v !== "Yes") { setChaperoneName(""); setChaperoneRole(""); } }}
@@ -727,27 +769,26 @@ export default function ClinicLetterApp() {
               <>
                 <TextField label="Chaperone name" value={chaperoneName} onChange={setChaperoneName} placeholder="Name of chaperone" />
                 <SelectField label="Chaperone role" value={chaperoneRole} onChange={setChaperoneRole}
-                  options={s.chaperoneRoleOptions} allowFreeText placeholder="Select role..." />
+                  options={s.chaperoneRoleOptions} allowFreeText placeholder="Select role…" />
               </>
             )}
           </div>
 
-          {/* LESION ASSESSMENT */}
-          <div style={cardStyle}>
-            <SectionHeader icon="🔬">Lesion Assessment</SectionHeader>
+          {/* ── LESION ASSESSMENT ── */}
+          <div style={card(ACCENTS.lesion)}>
+            <SectionHeader icon="🔬" accent={ACCENTS.lesion}>Lesion Assessment</SectionHeader>
             {lesions.map((lesion, i) => (
-              <div key={i} style={{ background: "#f8fafc", borderRadius: 8, padding: 14, marginBottom: 14, border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "#1a5276" }}>Lesion {i + 1}</span>
+              <div key={i} style={{ background: "#fdf8f8", borderRadius: 10, padding: 16, marginBottom: 14, border: `1px solid ${ACCENTS.lesion}22` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: ACCENTS.lesion, fontFamily: "'DM Sans'" }}>Lesion {i + 1}</span>
                   {lesions.length > 1 && (
-                    <button onClick={() => removeLesion(i)}
-                      style={{ ...btnSmall, background: "#fee2e2", color: "#c0392b", fontSize: 11 }}>✕ Remove</button>
+                    <button onClick={() => removeLesion(i)} style={{ ...btnSmall, background: "#fff5f5", color: "#e53e3e", border: "1px solid #fed7d7", fontSize: 11 }}>✕ Remove</button>
                   )}
                 </div>
                 <TextField label="Site" required={i === 0} value={lesion.site}
                   onChange={v => updateLesion(i, "site", v)} placeholder="e.g. Left forearm" />
                 <TextField label="Size" required={i === 0} value={lesion.size}
-                  onChange={v => updateLesion(i, "size", v)} placeholder="e.g. 8mm x 6mm" />
+                  onChange={v => updateLesion(i, "size", v)} placeholder="e.g. 8mm × 6mm" />
                 <CheckboxGroup label="Dermoscopy findings" required={i === 0}
                   options={DERMOSCOPY_OPTIONS} selected={lesion.dermoscopy}
                   onChange={v => updateLesion(i, "dermoscopy", v)}
@@ -756,60 +797,59 @@ export default function ClinicLetterApp() {
               </div>
             ))}
             <button onClick={addLesion}
-              style={{ ...btnSmall, background: "#ebf5fb", color: "#1a5276", border: "1.5px dashed #1a5276", width: "100%", padding: 10, fontSize: 13 }}>
+              style={{ ...btnSmall, background: "#fff8f8", color: ACCENTS.lesion, border: `1.5px dashed ${ACCENTS.lesion}80`, width: "100%", padding: 11, fontSize: 13, borderRadius: 10 }}>
               + Add another lesion
             </button>
           </div>
 
-          {/* CONSULTANT INVOLVEMENT */}
-          <div style={cardStyle}>
-            <SectionHeader icon="👨‍⚕️">Consultant Involvement</SectionHeader>
-            <SelectField label="Consultant involvement" required value={consultInvolvement} onChange={setConsultInvolvement}
+          {/* ── CONSULTANT INVOLVEMENT ── */}
+          <div style={card(ACCENTS.consultant)}>
+            <SectionHeader icon="👨‍⚕️" accent={ACCENTS.consultant}>Consultant Involvement</SectionHeader>
+            <ButtonSelectGroup label="Consultant involvement" required value={consultInvolvement} onChange={setConsultInvolvement}
               options={["Discussion", "Review"]} />
-            <SelectField label="Consultant involved" required value={consultInvolved} onChange={setConsultInvolved}
+            <ButtonSelectGroup label="Consultant involved" required value={consultInvolved} onChange={setConsultInvolved}
               options={s.consultantOptions} allowFreeText />
           </div>
 
-          {/* Actions */}
-          <div style={{ padding: "16px 16px 0", display: "flex", gap: 10 }}>
+          {/* ── Actions ── */}
+          <div style={{ padding: "14px 14px 0", display: "flex", gap: 10 }}>
             <button onClick={() => setView("letter")}
               style={{
-                flex: 1, padding: "14px 20px", borderRadius: 10, border: "none",
-                background: allFilled ? "linear-gradient(135deg, #1a5276, #2980b9)" : "#95a5a6",
+                flex: 1, padding: "15px 20px", borderRadius: 12, border: "none",
+                background: allFilled ? "linear-gradient(135deg, #1a3a5c, #2471a3)" : "#a0aec0",
                 color: "#fff", fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 700,
-                cursor: "pointer", letterSpacing: 0.3,
-                boxShadow: allFilled ? "0 4px 12px rgba(26,82,118,0.3)" : "none"
+                cursor: "pointer", boxShadow: allFilled ? "0 4px 16px rgba(26,82,118,0.35)" : "none", transition: "all 0.2s"
               }}>
               ✉️ Preview Letter
             </button>
             <button onClick={resetForm}
-              style={{ ...btnSmall, padding: "14px 20px", background: "#fee2e2", color: "#c0392b", fontSize: 13, borderRadius: 10 }}>
+              style={{ ...btnSmall, padding: "15px 20px", background: "#fff5f5", color: "#e53e3e", border: "1px solid #fed7d7", fontSize: 13, borderRadius: 12 }}>
               🗑 Reset
             </button>
           </div>
         </div>
       ) : (
-        /* LETTER VIEW */
-        <div style={{ ...cardStyle, margin: "16px" }}>
+        /* ── LETTER VIEW ── */
+        <div style={{ background: "#fff", borderRadius: 14, padding: "22px 24px", margin: "12px 14px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)", border: "1px solid #edf2f7" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <button onClick={copyToClipboard}
               style={{
-                padding: "10px 24px", borderRadius: 8, border: "none", cursor: "pointer",
-                background: copied ? "#2ecc71" : "linear-gradient(135deg, #1a5276, #2980b9)",
+                padding: "10px 26px", borderRadius: 9, border: "none", cursor: "pointer",
+                background: copied ? "#38a169" : "linear-gradient(135deg, #1a3a5c, #2471a3)",
                 color: "#fff", fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 14,
-                boxShadow: "0 2px 8px rgba(26,82,118,0.2)", transition: "all 0.2s"
+                boxShadow: "0 2px 10px rgba(26,82,118,0.25)", transition: "all 0.2s"
               }}>
               {copied ? "✓ Copied!" : "📋 Copy Letter"}
             </button>
             <button onClick={() => setView("form")}
-              style={{ ...btnSmall, padding: "10px 16px", background: "#ecf0f1", color: "#555", fontSize: 13, borderRadius: 8 }}>
+              style={{ ...btnSmall, padding: "10px 18px", background: "#edf2f7", color: "#4a5568", fontSize: 13, borderRadius: 9 }}>
               ← Back to form
             </button>
           </div>
           <pre ref={letterRef} style={{
-            fontFamily: "'DM Mono', monospace", fontSize: 12.5, lineHeight: 1.7,
-            whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#2c3e50",
-            background: "#fafbfc", padding: 20, borderRadius: 8, border: "1px solid #e8ecf0"
+            fontFamily: "'DM Mono', monospace", fontSize: 12.5, lineHeight: 1.75,
+            whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#2d3748",
+            background: "#f7fafc", padding: 22, borderRadius: 10, border: "1px solid #e2e8f0", margin: 0
           }}>
             {generateLetter()}
           </pre>
