@@ -469,13 +469,13 @@ export default function ClinicLetterApp() {
     { name: "Social history",         ok: social.length > 0 || !!socialFree },
     { name: "Performance status",     ok: !!perfStatus },
     { name: "Full skin exam",         ok: !!fullExam },
-    { name: "Chaperone",              ok: fullExam === "No" || !!chaperone },
+    { name: "Chaperone",              ok: !!chaperone },
     { name: "Lesion 1 site",          ok: !!lesions[0]?.site },
     { name: "Lesion 1 size",          ok: !!lesions[0]?.size },
     { name: "Lesion 1 dermoscopy",    ok: lesions[0]?.dermoscopy?.length > 0 || !!lesions[0]?.dermoscopyFree },
     { name: "Consultant involvement", ok: !!consultInvolvement },
     { name: "Consultant involved",    ok: !!consultInvolved },
-  ]), [reason,consultant,diagnosis,diagnosisFree,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExam,chaperone,lesions,consultInvolvement,consultInvolved,skinTypeShort,perfStatusShort]);
+  ]), [reason,consultant,diagnosis,diagnosisFree,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExam,chaperone,lesions,consultInvolvement,consultInvolved]);
 
   const filledCount = requiredFields.filter(f => f.ok).length;
   const totalCount  = requiredFields.length;
@@ -504,27 +504,6 @@ export default function ClinicLetterApp() {
   const hobbyListText    = hobbies.includes("No outdoor hobbies") ? "No outdoor hobbies" : joinMulti(hobbies.filter(h => h !== "No outdoor hobbies"), hobbiesFree);
   const hobbyProsePhrase = useMemo(() => formatHobbyList(hobbies, hobbiesFree), [hobbies, hobbiesFree]);
 
-  // Abbreviated versions for letter structured section
-  const skinTypeShort  = useMemo(() => SKIN_TYPES.find(t => t.full === skinType)?.short || skinType, [skinType]);
-  const perfStatusShort = useMemo(() => { const m = perfStatus.match(/^(\d+)/); return m ? m[1] : perfStatus; }, [perfStatus]);
-
-  // Sun exposure prose sentence (with extra context when more than minimal)
-  const sunExposureProse = useMemo(() => {
-    if (!sunExposure) return "";
-    const isMinimal = sunExposure.toLowerCase().includes("minimal");
-    const base = `You have had ${low(sunExposure)}.`;
-    if (isMinimal) return base;
-    const extras = [];
-    if (livedAbroad && livedAbroad !== "Never")     extras.push(low(livedAbroad));
-    if (workedOutside && workedOutside !== "Never") extras.push(low(workedOutside));
-    if (sunbed && sunbed !== "Never")               extras.push(`${low(sunbed)} sunbed use`);
-    if (!extras.length) return base;
-    const extraStr = extras.length === 1
-      ? cap(extras[0])
-      : extras.slice(0, -1).map(cap).join(", ") + " and " + extras[extras.length - 1];
-    return `${base} ${extraStr}.`;
-  }, [sunExposure, livedAbroad, workedOutside, sunbed]);
-
   const personPresentPhrase = useMemo(() => {
     if (!personName && !personRelation) return "";
     if (personName && personRelation)   return `, with ${personName}, your ${low(personRelation)},`;
@@ -539,8 +518,11 @@ export default function ClinicLetterApp() {
     return `I discussed your case with ${consultInvolved} who agreed the plan.`;
   }, [consultInvolvement, consultInvolved, allDiagnoses]);
 
-  const SAFETY_NET_FOLLOWUP  = "If you remain under dermatology follow-up, please contact using the details at the top of this letter. Waiting times for procedures can be long therefore if you notice any significant increase in size of the growth or develop new symptoms such as pain or bleeding please contact us urgently on the above number.";
-  const SAFETY_NET_DISCHARGE = "If you find any new, non-healing or rapidly growing lesions please seek medical attention via your local care provider if you have been discharged from our service.";
+  const followUpParagraph = useMemo(() =>
+    followUp === "Discharge"
+      ? "If you find any new, non-healing or rapidly growing lesions please seek medical attention via your local care provider if you have been discharged from our service."
+      : "If you remain under dermatology follow-up, please contact using the details at the top of this letter. Waiting times for procedures can be long therefore if you notice any significant increase in size of the growth or develop new symptoms such as pain or bleeding please contact us urgently on the above number."
+  , [followUp]);
 
   const generateLetter = useCallback(() => {
     const L = [];
@@ -566,7 +548,7 @@ export default function ClinicLetterApp() {
     L.push(`Previous skin cancer: ${cap(prevCancer) || "[Not specified]"}`);
     L.push(`Family history: ${cap(familyHx) || "[Not specified]"}`);
     L.push(`Immunosuppression: ${cap(immunosupp) || "[Not specified]"}`);
-    L.push(`Skin type: ${skinTypeShort || "[Not specified]"}`);
+    L.push(`Skin type: ${cap(skinType) || "[Not specified]"}`);
     L.push(`Sun exposure: ${cap(sunExposure) || "[Not specified]"}`);
     L.push(`Sunbed use: ${cap(sunbed) || "[Not specified]"}`);
     L.push(`Worked outside: ${cap(workedOutside) || "Never"}`);
@@ -579,7 +561,7 @@ export default function ClinicLetterApp() {
     L.push(`Allergies: ${cap(allergies) || "[Not specified]"}`);
     L.push(`PPM/implanted device: ${cap(ppm) || "[Not specified]"}`);
     L.push(`Social history: ${capJoin(social, socialFree) || "[Not specified]"}`);
-    L.push(`Performance status: ${perfStatusShort || "[Not specified]"}\n`);
+    L.push(`Performance status: ${cap(perfStatus) || "[Not specified]"}\n`);
     L.push("Examination");
     L.push(`Full skin examination performed: ${fullExamStructured || "[Not specified]"}`);
     L.push(`Chaperone: ${chaperoneText || "[Not specified]"}\n`);
@@ -593,7 +575,6 @@ export default function ClinicLetterApp() {
     L.push(`I reviewed you${personPresentPhrase} this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
     if (hobbies.includes("No outdoor hobbies")) L.push("You have no outdoor hobbies.");
     else if (hobbyProsePhrase) L.push(`You enjoy ${hobbyProsePhrase}.`);
-    if (sunExposureProse) L.push(sunExposureProse);
     L.push("");
     if (fullExam === "Normal") {
       L.push(`I conducted a full skin examination with ${chaperoneProsePhrase} present. There were no other lesions of concern.`);
@@ -606,16 +587,14 @@ export default function ClinicLetterApp() {
     L.push("");
     L.push("Management as above.\n");
     L.push("Please continue to monitor your skin regularly for any changes.\n");
-    L.push(SAFETY_NET_FOLLOWUP);
-    L.push("");
-    L.push(SAFETY_NET_DISCHARGE);
+    L.push(followUpParagraph);
     L.push("");
     L.push("Yours sincerely\n");
     L.push("Dr Harry Large");
     L.push("GPST3 in Dermatology");
     L.push("GMC: 7837565");
     return L.join("\n");
-  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinTypeShort,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatusShort,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,sunExposureProse,personPresentPhrase,today]);
+  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,followUpParagraph,personPresentPhrase,today]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateLetter()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -665,10 +644,6 @@ export default function ClinicLetterApp() {
             <button onClick={() => setSettingsOpen(true)}
               style={{ ...tabBtn, background: "rgba(255,255,255,0.12)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)" }}>
               ⚙️ Settings
-            </button>
-            <button onClick={resetForm}
-              style={{ ...tabBtn, background: "rgba(252,129,129,0.25)", color: "#fca5a5", border: "1px solid rgba(252,129,129,0.35)" }}>
-              🗑 Reset
             </button>
             <button onClick={() => setView("form")}
               style={{ ...tabBtn, background: view === "form" ? "#fff" : "rgba(255,255,255,0.12)", color: view === "form" ? "#1a5276" : "#fff", border: view === "form" ? "none" : "1px solid rgba(255,255,255,0.2)" }}>
@@ -787,11 +762,9 @@ export default function ClinicLetterApp() {
               <TextField label="Describe findings" value={skinExamFindings} onChange={setSkinExamFindings}
                 placeholder="Describe abnormal findings…" multiline />
             )}
-            {fullExam !== "No" && (
             <SelectOrFreeText label="Chaperone" required value={chaperone}
               onChange={(v) => { setChaperone(v); if (v !== "Yes") { setChaperoneName(""); setChaperoneRole(""); } }}
               options={["No at patient request", "Yes"]} />
-            )}
             {chaperone === "Yes" && (
               <>
                 <TextField label="Chaperone name" value={chaperoneName} onChange={setChaperoneName} placeholder="Name of chaperone" />
