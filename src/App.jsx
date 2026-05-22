@@ -65,6 +65,23 @@ const formatHobbyList = (arr, free) => {
   if (items.length === 1) return items[0].toLowerCase();
   return items.slice(0, -1).map(h => h.toLowerCase()).join(", ") + " and " + items[items.length - 1].toLowerCase();
 };
+// Join clauses into "a, b and c"
+const joinAnd = (arr) => arr.length <= 1 ? (arr[0] || "") : arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+
+// Map form values → predicate fragments that read naturally after "You …"
+const WORKED_OUTSIDE_FRAGMENTS = {
+  "Previously worked outside": "previously worked outdoors",
+  "Currently works outdoors":  "currently work outdoors",
+};
+const LIVED_ABROAD_FRAGMENTS = {
+  "Previously lived abroad": "previously lived abroad",
+};
+const SUNBED_FRAGMENTS = {
+  "Minimal previous use": "previously used a sunbed minimally",
+  "Regular previous use": "previously used a sunbed regularly",
+  "Minimal current use":  "currently use a sunbed minimally",
+  "Regular current use":  "currently use a sunbed regularly",
+};
 
 // ─── Shared tokens ────────────────────────────────────────────────────────────
 const inputStyle = {
@@ -508,18 +525,16 @@ export default function ClinicLetterApp() {
 
   const sunExposureProse = useMemo(() => {
     if (!sunExposure) return "";
-    const base = `You have had ${low(sunExposure)}.`;
-    if (sunExposure.toLowerCase().includes("minimal")) return base;
-    const extras = [];
-    if (livedAbroad && livedAbroad !== "Never")     extras.push(low(livedAbroad));
-    if (workedOutside && workedOutside !== "Never") extras.push(low(workedOutside));
-    if (sunbed && sunbed !== "Never")               extras.push(`${low(sunbed)} sunbed use`);
-    if (!extras.length) return base;
-    const joined = extras.length === 1
-      ? cap(extras[0])
-      : extras.slice(0, -1).map(cap).join(", ") + " and " + extras[extras.length - 1];
-    return `${base} ${joined}.`;
-  }, [sunExposure, livedAbroad, workedOutside, sunbed]);
+    const base = `You have had ${low(sunExposure)}`;
+    if (sunExposure.toLowerCase().includes("minimal")) return `${base}.`;
+    const frags = [];
+    if (workedOutside && workedOutside !== "Never") frags.push(WORKED_OUTSIDE_FRAGMENTS[workedOutside] || low(workedOutside));
+    if (livedAbroad && livedAbroad !== "Never")     frags.push(LIVED_ABROAD_FRAGMENTS[livedAbroad] || low(livedAbroad));
+    if (hobbyProsePhrase)                           frags.push(`enjoy ${hobbyProsePhrase}`);
+    if (sunbed && sunbed !== "Never")               frags.push(SUNBED_FRAGMENTS[sunbed] || low(sunbed));
+    if (!frags.length) return `${base}.`;
+    return `${base}. You ${joinAnd(frags)}.`;
+  }, [sunExposure, workedOutside, livedAbroad, hobbyProsePhrase, sunbed]);
 
   const personPresentPhrase = useMemo(() => {
     if (!personName && !personRelation) return "";
@@ -590,8 +605,6 @@ export default function ClinicLetterApp() {
     });
     // Prose
     L.push(`I reviewed you${personPresentPhrase} this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
-    if (hobbies.includes("No outdoor hobbies")) L.push("You have no outdoor hobbies.");
-    else if (hobbyProsePhrase) L.push(`You enjoy ${hobbyProsePhrase}.`);
     if (sunExposureProse) L.push(sunExposureProse);
     L.push("");
     if (fullExam === "Normal") {
@@ -740,9 +753,9 @@ export default function ClinicLetterApp() {
             <ButtonSelectGroup label="Sun exposure" required value={sunExposure} onChange={setSunExposure}
               options={["Minimal sun exposure", "Moderate sun exposure", "Marked sun exposure"]} allowFreeText />
             <ButtonSelectGroup label="Sunbed use" required value={sunbed} onChange={setSunbed}
-              options={["Never", "Minimal previous use", "Regular user"]} allowFreeText />
+              options={["Never", "Minimal previous use", "Regular previous use", "Minimal current use", "Regular current use"]} allowFreeText />
             <ButtonSelectGroup label="Worked outside" value={workedOutside} onChange={setWorkedOutside}
-              options={["Never", "Previously worked outside"]} allowFreeText />
+              options={["Never", "Previously worked outside", "Currently works outdoors"]} allowFreeText />
             <ButtonSelectGroup label="Lived abroad" value={livedAbroad} onChange={setLivedAbroad}
               options={["Never", "Previously lived abroad"]} allowFreeText />
             <ButtonSelectGroup label="Childhood sunburn" value={childhoodBurn} onChange={setChildhoodBurn}
