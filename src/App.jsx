@@ -442,6 +442,8 @@ export default function ClinicLetterApp() {
 
   const allDiagnoses = useMemo(() => { const d = [...diagnosis]; if (diagnosisFree) d.push(diagnosisFree); return d; }, [diagnosis, diagnosisFree]);
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const skinTypeShort   = useMemo(() => SKIN_TYPES.find(t => t.full === skinType)?.short || skinType, [skinType]);
+  const perfStatusShort = useMemo(() => { const m = perfStatus.match(/^(\d+)/); return m ? m[1] : perfStatus; }, [perfStatus]);
 
   const requiredFields = useMemo(() => ([
     { name: "Reason for attendance",  ok: !!reason },
@@ -548,7 +550,7 @@ export default function ClinicLetterApp() {
     L.push(`Previous skin cancer: ${cap(prevCancer) || "[Not specified]"}`);
     L.push(`Family history: ${cap(familyHx) || "[Not specified]"}`);
     L.push(`Immunosuppression: ${cap(immunosupp) || "[Not specified]"}`);
-    L.push(`Skin type: ${cap(skinType) || "[Not specified]"}`);
+    L.push(`Skin type: ${skinTypeShort || "[Not specified]"}`);
     L.push(`Sun exposure: ${cap(sunExposure) || "[Not specified]"}`);
     L.push(`Sunbed use: ${cap(sunbed) || "[Not specified]"}`);
     L.push(`Worked outside: ${cap(workedOutside) || "Never"}`);
@@ -561,7 +563,7 @@ export default function ClinicLetterApp() {
     L.push(`Allergies: ${cap(allergies) || "[Not specified]"}`);
     L.push(`PPM/implanted device: ${cap(ppm) || "[Not specified]"}`);
     L.push(`Social history: ${capJoin(social, socialFree) || "[Not specified]"}`);
-    L.push(`Performance status: ${cap(perfStatus) || "[Not specified]"}\n`);
+    L.push(`Performance status: ${perfStatusShort || "[Not specified]"}\n`);
     L.push("Examination");
     L.push(`Full skin examination performed: ${fullExamStructured || "[Not specified]"}`);
     L.push(`Chaperone: ${chaperoneText || "[Not specified]"}\n`);
@@ -594,7 +596,7 @@ export default function ClinicLetterApp() {
     L.push("GPST3 in Dermatology");
     L.push("GMC: 7837565");
     return L.join("\n");
-  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinType,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatus,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,followUpParagraph,personPresentPhrase,today]);
+  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinTypeShort,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatusShort,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,personPresentPhrase,today]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateLetter()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
