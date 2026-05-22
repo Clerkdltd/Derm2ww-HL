@@ -506,6 +506,21 @@ export default function ClinicLetterApp() {
   const hobbyListText    = hobbies.includes("No outdoor hobbies") ? "No outdoor hobbies" : joinMulti(hobbies.filter(h => h !== "No outdoor hobbies"), hobbiesFree);
   const hobbyProsePhrase = useMemo(() => formatHobbyList(hobbies, hobbiesFree), [hobbies, hobbiesFree]);
 
+  const sunExposureProse = useMemo(() => {
+    if (!sunExposure) return "";
+    const base = `You have had ${low(sunExposure)}.`;
+    if (sunExposure.toLowerCase().includes("minimal")) return base;
+    const extras = [];
+    if (livedAbroad && livedAbroad !== "Never")     extras.push(low(livedAbroad));
+    if (workedOutside && workedOutside !== "Never") extras.push(low(workedOutside));
+    if (sunbed && sunbed !== "Never")               extras.push(`${low(sunbed)} sunbed use`);
+    if (!extras.length) return base;
+    const joined = extras.length === 1
+      ? cap(extras[0])
+      : extras.slice(0, -1).map(cap).join(", ") + " and " + extras[extras.length - 1];
+    return `${base} ${joined}.`;
+  }, [sunExposure, livedAbroad, workedOutside, sunbed]);
+
   const personPresentPhrase = useMemo(() => {
     if (!personName && !personRelation) return "";
     if (personName && personRelation)   return `, with ${personName}, your ${low(personRelation)},`;
@@ -577,6 +592,7 @@ export default function ClinicLetterApp() {
     L.push(`I reviewed you${personPresentPhrase} this morning in the two-week wait skin cancer clinic due to a lesion on ${low(location) || "[location]"}. This has been present for ${low(duration) || "[duration]"}.`);
     if (hobbies.includes("No outdoor hobbies")) L.push("You have no outdoor hobbies.");
     else if (hobbyProsePhrase) L.push(`You enjoy ${hobbyProsePhrase}.`);
+    if (sunExposureProse) L.push(sunExposureProse);
     L.push("");
     if (fullExam === "Normal") {
       L.push(`I conducted a full skin examination with ${chaperoneProsePhrase} present. There were no other lesions of concern.`);
@@ -596,7 +612,7 @@ export default function ClinicLetterApp() {
     L.push("GPST3 in Dermatology");
     L.push("GMC: 7837565");
     return L.join("\n");
-  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinTypeShort,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,pmh,anticoag,allergies,ppm,social,socialFree,perfStatusShort,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,personPresentPhrase,today]);
+  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinTypeShort,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,sunExposureProse,pmh,anticoag,allergies,ppm,social,socialFree,perfStatusShort,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,personPresentPhrase,today]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateLetter()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
