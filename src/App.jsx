@@ -587,8 +587,8 @@ export default function ClinicLetterApp() {
     L.push("");
     L.push("Management as above.\n");
     L.push("Please continue to monitor your skin regularly for any changes.\n");
-    L.push(followUpParagraph);
-    L.push("");
+    L.push("If you remain under dermatology follow-up, please contact using the details at the top of this letter. Waiting times for procedures can be long therefore if you notice any significant increase in size of the growth or develop new symptoms such as pain or bleeding please contact us urgently on the above number\n");
+    L.push("If you find any new, non-healing or rapidly growing lesions please seek medical attention via your local care provider if you have been discharged from our service.\n");
     L.push("Yours sincerely\n");
     L.push("Dr Harry Large");
     L.push("GPST3 in Dermatology");
