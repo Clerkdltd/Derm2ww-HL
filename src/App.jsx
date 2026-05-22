@@ -526,12 +526,15 @@ export default function ClinicLetterApp() {
   const sunExposureProse = useMemo(() => {
     if (!sunExposure) return "";
     const base = `You have had ${low(sunExposure)}`;
-    if (sunExposure.toLowerCase().includes("minimal")) return `${base}.`;
+    const sunbedFrag = sunbed && sunbed !== "Never" ? (SUNBED_FRAGMENTS[sunbed] || low(sunbed)) : "";
+    if (sunExposure.toLowerCase().includes("minimal")) {
+      return sunbedFrag ? `${base}. You ${sunbedFrag}.` : `${base}.`;
+    }
     const frags = [];
     if (workedOutside && workedOutside !== "Never") frags.push(WORKED_OUTSIDE_FRAGMENTS[workedOutside] || low(workedOutside));
     if (livedAbroad && livedAbroad !== "Never")     frags.push(LIVED_ABROAD_FRAGMENTS[livedAbroad] || low(livedAbroad));
     if (hobbyProsePhrase)                           frags.push(`enjoy ${hobbyProsePhrase}`);
-    if (sunbed && sunbed !== "Never")               frags.push(SUNBED_FRAGMENTS[sunbed] || low(sunbed));
+    if (sunbedFrag)                                 frags.push(sunbedFrag);
     if (!frags.length) return `${base}.`;
     return `${base}. You ${joinAnd(frags)}.`;
   }, [sunExposure, workedOutside, livedAbroad, hobbyProsePhrase, sunbed]);
