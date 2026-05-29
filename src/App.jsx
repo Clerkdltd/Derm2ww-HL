@@ -642,7 +642,7 @@ export default function ClinicLetterApp() {
     L.push(consultantSentence);
     L.push("");
     if (followUp === "Clinic follow up") {
-      L.push(`We will arrange a follow-up appointment for you in ${followUpNumber} ${followUpPeriod}.`);
+      L.push(`We will arrange a follow-up clinic appointment for you in ${followUpNumber} ${followUpPeriod}. If you have not heard from us by then, please contact the team using the details at the top of this letter.`);
       L.push("");
     }
     L.push("Management as above.\n");
