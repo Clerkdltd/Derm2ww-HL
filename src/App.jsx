@@ -49,7 +49,7 @@ const DEFAULT_SETTINGS = {
   patientInfoOptions:   ["ABCDE mole check", "Sun safety", "Seborrhoeic keratosis", "Incisional biopsy", "Curette and cautery", "Punch biopsy", "Cryotherapy", "Efudix", "Actinic keratosis"],
   gpActionsOptions:     ["Script", "None"],
   twwOptions:           ["Step down", "Remain on TWW pathway"],
-  followUpOptions:      ["Discharge", "With results"],
+  followUpOptions:      ["Discharge", "With results", "Clinic follow up"],
   chaperoneRoleOptions: ["Nurse", "Healthcare assistant", "Medical student", "Clinic coordinator"],
   hobbyOptions:         ["Gardening", "Horse riding", "Outdoor sports", "Watersports"],
 };
@@ -397,6 +397,8 @@ export default function ClinicLetterApp() {
   const [lesionId, setLesionId]                     = useState("");
   const [twwPathway, setTwwPathway]                 = useState("");
   const [followUp, setFollowUp]                     = useState("");
+  const [followUpNumber, setFollowUpNumber]         = useState("6");
+  const [followUpPeriod, setFollowUpPeriod]         = useState("weeks");
 
   // ── Clinical assessment ──
   const [location, setLocation]                     = useState("");
@@ -463,6 +465,12 @@ export default function ClinicLetterApp() {
       setManagementPlan(prev => prev.includes("Clinical photography") ? prev : [...prev, "Clinical photography"]);
     }
   }, [lesionId]);
+
+  useEffect(() => {
+    if (followUp === "Clinic follow up") {
+      setManagementPlan(prev => prev.includes("Clinic review follow up") ? prev : [...prev, "Clinic review follow up"]);
+    }
+  }, [followUp]);
 
   const allDiagnoses = useMemo(() => { const d = [...diagnosis]; if (diagnosisFree) d.push(diagnosisFree); return d; }, [diagnosis, diagnosisFree]);
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -582,7 +590,8 @@ export default function ClinicLetterApp() {
     L.push(`Actions for GP: ${cap(gpActionsDisplay.join(", ")) || "[Not specified]"}\n`);
     L.push(`How will lesion be identified: ${cap(lesionId) || "N/A"}\n`);
     L.push(`Remain on TWW pathway: ${cap(twwPathway) || "[Not specified]"}\n`);
-    L.push(`Follow up: ${cap(followUp) || "[Not specified]"}\n`);
+    const followUpDisplay = followUp === "Clinic follow up" ? `Clinic follow up in ${followUpNumber} ${followUpPeriod}` : followUp;
+    L.push(`Follow up: ${cap(followUpDisplay) || "[Not specified]"}\n`);
     L.push("Clinical Assessment");
     L.push(`Location: ${cap(location) || "[Not specified]"}`);
     L.push(`Duration: ${cap(duration) || "[Not specified]"}`);
@@ -641,7 +650,7 @@ export default function ClinicLetterApp() {
     L.push("GPST3 in Dermatology");
     L.push("GMC: 7837565");
     return L.join("\n");
-  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinTypeShort,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,sunExposureProse,pmh,anticoag,allergies,ppm,social,socialFree,perfStatusShort,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,personPresentPhrase,today]);
+  }, [reason,consultant,allDiagnoses,diagLabel,managementPlan,managementPlanFree,patientInfo,patientInfoFree,gpActions,gpActionsFree,lesionId,twwPathway,followUp,followUpNumber,followUpPeriod,location,duration,reportedChange,reportedChangeFree,symptoms,symptomsFree,prevCancer,familyHx,immunosupp,skinTypeShort,sunExposure,sunbed,workedOutside,livedAbroad,childhoodBurn,hobbyListText,hobbyProsePhrase,hobbies,sunExposureProse,pmh,anticoag,allergies,ppm,social,socialFree,perfStatusShort,fullExamStructured,chaperoneText,chaperoneProsePhrase,fullExam,skinExamFindings,lesions,consultantSentence,personPresentPhrase,today]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generateLetter()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -651,7 +660,7 @@ export default function ClinicLetterApp() {
     setReason(""); setConsultant(""); setDiagnosis([]); setDiagnosisFree("");
     setManagementPlan([]); setManagementPlanFree("");
     setPatientInfo(["ABCDE mole check", "Sun safety"]); setPatientInfoFree("");
-    setGpActions([]); setGpActionsFree(""); setLesionId(""); setTwwPathway(""); setFollowUp("");
+    setGpActions([]); setGpActionsFree(""); setLesionId(""); setTwwPathway(""); setFollowUp(""); setFollowUpNumber("6"); setFollowUpPeriod("weeks");
     setLocation(""); setDuration(""); setReportedChange([]); setReportedChangeFree("");
     setSymptoms([]); setSymptomsFree(""); setPrevCancer(""); setFamilyHx(""); setImmunosupp("");
     setSkinType(""); setSunExposure(""); setSunbed(""); setWorkedOutside(""); setLivedAbroad("");
@@ -744,6 +753,18 @@ export default function ClinicLetterApp() {
               options={s.twwOptions} />
             <ButtonSelectGroup label="Follow up" required value={followUp} onChange={setFollowUp}
               options={s.followUpOptions} allowFreeText />
+            {followUp === "Clinic follow up" && (
+              <div style={{ display: "flex", gap: 8, marginTop: -6, marginBottom: 14 }}>
+                <select value={followUpNumber} onChange={e => setFollowUpNumber(e.target.value)}
+                  style={{ ...inputStyle, width: 80 }}>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12,16,18,24].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <select value={followUpPeriod} onChange={e => setFollowUpPeriod(e.target.value)}
+                  style={{ ...inputStyle, width: 110 }}>
+                  {["days","weeks","months"].map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* ── CLINICAL ASSESSMENT ── */}
