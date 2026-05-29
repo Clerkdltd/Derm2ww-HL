@@ -510,6 +510,7 @@ export default function ClinicLetterApp() {
 
   const chaperoneProsePhrase = useMemo(() => {
     if (chaperone === "No at patient request") return "no chaperone at patient request";
+    if (chaperone === "Nil present")           return "no chaperone";
     if (chaperone === "Yes") return `chaperone ${chaperoneName || "[name]"}${chaperoneRole ? ` (${low(chaperoneRole)})` : ""}`;
     return chaperone ? low(chaperone) : "[chaperone]";
   }, [chaperone, chaperoneName, chaperoneRole]);
