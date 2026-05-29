@@ -641,6 +641,10 @@ export default function ClinicLetterApp() {
     }
     L.push(consultantSentence);
     L.push("");
+    if (followUp === "Clinic follow up") {
+      L.push(`We will arrange a follow-up appointment for you in ${followUpNumber} ${followUpPeriod}.`);
+      L.push("");
+    }
     L.push("Management as above.\n");
     L.push("Please continue to monitor your skin regularly for any changes.\n");
     L.push("If you remain under dermatology follow-up, please contact using the details at the top of this letter. Waiting times for procedures can be long therefore if you notice any significant increase in size of the growth or develop new symptoms such as pain or bleeding please contact us urgently on the above number\n");
