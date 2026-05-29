@@ -23,12 +23,12 @@ const SOCIAL_OPTIONS = [
 ];
 
 const SKIN_TYPES = [
-  { short: "Type I",   full: "Type I — Highly sensitive, always burns, never tans" },
-  { short: "Type II",  full: "Type II — Very sun sensitive, burns easily, tans minimally" },
-  { short: "Type III", full: "Type III — Sun sensitive, sometimes burns, slowly tans to light brown" },
-  { short: "Type IV",  full: "Type IV — Minimally sun sensitive, burns minimally, always tans to moderate brown" },
-  { short: "Type V",   full: "Type V — Sun insensitive, rarely burns, tans well" },
-  { short: "Type VI",  full: "Type VI — Sun insensitive, never burns, deeply pigmented" },
+  { short: "Type I",   full: "Type I: Highly sensitive, always burns, never tans" },
+  { short: "Type II",  full: "Type II: Very sun sensitive, burns easily, tans minimally" },
+  { short: "Type III", full: "Type III: Sun sensitive, sometimes burns, slowly tans to light brown" },
+  { short: "Type IV",  full: "Type IV: Minimally sun sensitive, burns minimally, always tans to moderate brown" },
+  { short: "Type V",   full: "Type V: Sun insensitive, rarely burns, tans well" },
+  { short: "Type VI",  full: "Type VI: Sun insensitive, never burns, deeply pigmented" },
 ];
 
 const PERFORMANCE_STATUS = [
@@ -351,7 +351,7 @@ function SettingsModal({ settings, onChange, onClose }) {
                 </span>
               ))}
               {!(settings[key] || []).length && (
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#a0aec0", fontStyle: "italic" }}>No options — add one below</span>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#a0aec0", fontStyle: "italic" }}>No options, add one below</span>
               )}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -517,8 +517,8 @@ export default function ClinicLetterApp() {
 
   const fullExamStructured = useMemo(() => {
     if (fullExam === "No")               return "No, patient kindly declined offer and has capacity";
-    if (fullExam === "Normal")           return "Yes — no abnormal findings";
-    if (fullExam === "Abnormal findings") return skinExamFindings ? `Yes — abnormal findings: ${cap(skinExamFindings)}` : "Yes — abnormal findings (not described)";
+    if (fullExam === "Normal")           return "Yes, no abnormal findings";
+    if (fullExam === "Abnormal findings") return skinExamFindings ? `Yes, abnormal findings: ${cap(skinExamFindings)}` : "Yes, abnormal findings (not described)";
     return fullExam;
   }, [fullExam, skinExamFindings]);
 
@@ -795,8 +795,8 @@ export default function ClinicLetterApp() {
           {/* ── EXAMINATION ── */}
           <div style={card(ACCENTS.examination)}>
             <SectionHeader icon="🩺" accent={ACCENTS.examination}>Examination</SectionHeader>
-            <TextField label="Person present — name (optional)" value={personName} onChange={setPersonName} placeholder="e.g. Jane" />
-            <SelectField label="Person present — relation (optional)" value={personRelation} onChange={setPersonRelation}
+            <TextField label="Person present: name (optional)" value={personName} onChange={setPersonName} placeholder="e.g. Jane" />
+            <SelectField label="Person present: relation (optional)" value={personRelation} onChange={setPersonRelation}
               options={["Partner", "Spouse", "Husband", "Wife", "Mother", "Father", "Daughter", "Son", "Sister", "Brother", "Friend", "Carer"]}
               allowFreeText placeholder="Select relation…" />
             <SelectOrFreeText label="Full skin examination" required value={fullExam}
