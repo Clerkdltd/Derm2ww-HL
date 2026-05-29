@@ -551,8 +551,8 @@ export default function ClinicLetterApp() {
   const consultantSentence = useMemo(() => {
     if (!consultInvolved) return "";
     if (consultInvolvement === "Review")
-      return `You were also reviewed by ${consultInvolved} who agreed this represents a ${low(allDiagnoses.join(", ")) || "[diagnosis]"}.`;
-    return `I discussed your case with ${consultInvolved} who agreed the plan.`;
+      return `You were also reviewed by ${consultInvolved}, who agreed with the likely diagnosis and management plan.`;
+    return `I discussed your case with ${consultInvolved}, who agreed with the likely diagnosis and management plan.`;
   }, [consultInvolvement, consultInvolved, allDiagnoses]);
 
   const followUpParagraph = useMemo(() =>
