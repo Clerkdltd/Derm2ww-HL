@@ -14,6 +14,7 @@ const DERMOSCOPY_OPTIONS = [
 ];
 
 const SOCIAL_OPTIONS = [
+  "Never smoked",
   "Heavy cigarette smoker", "Moderate cigarette smoker", "Minimal cigarette smoker",
   "Ex-heavy cigarette smoker", "Ex-moderate cigarette smoker", "Ex-minimal cigarette smoker",
   "Ex smoker", "Smoker", "Electronic cigarette user", "Ex-electronic cigarette user",
@@ -675,6 +676,10 @@ export default function ClinicLetterApp() {
             <div style={{ fontSize: 11.5, opacity: 0.75, marginTop: 2, letterSpacing: 0.3 }}>Dr Harry Large · {today}</div>
           </div>
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            <button onClick={resetForm}
+              style={{ ...tabBtn, background: "rgba(255,255,255,0.12)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)" }}>
+              🗑 Reset
+            </button>
             <button onClick={() => setSettingsOpen(true)}
               style={{ ...tabBtn, background: "rgba(255,255,255,0.12)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)" }}>
               ⚙️ Settings
@@ -798,7 +803,7 @@ export default function ClinicLetterApp() {
             )}
             <SelectOrFreeText label="Chaperone" required value={chaperone}
               onChange={(v) => { setChaperone(v); if (v !== "Yes") { setChaperoneName(""); setChaperoneRole(""); } }}
-              options={["No at patient request", "Yes"]} />
+              options={["Nil present", "No at patient request", "Yes"]} />
             {chaperone === "Yes" && (
               <>
                 <TextField label="Chaperone name" value={chaperoneName} onChange={setChaperoneName} placeholder="Name of chaperone" />
