@@ -572,7 +572,8 @@ export default function ClinicLetterApp() {
     L.push(`${diagLabel}: ${capJoin(allDiagnoses, "") || "[Not specified]"}\n`);
     L.push(`Management plan: ${capJoin(managementPlan, managementPlanFree) || "[Not specified]"}\n`);
     L.push(`Patient information provided: ${capJoin(patientInfo, patientInfoFree) || "[Not specified]"}\n`);
-    L.push(`Actions for GP: ${capJoin(gpActions, gpActionsFree) || "[Not specified]"}\n`);
+    const gpActionsDisplay = [...gpActions.map(a => a === "Script" ? "Please provide treatments as per GP script" : a), ...(gpActionsFree ? [gpActionsFree] : [])];
+    L.push(`Actions for GP: ${cap(gpActionsDisplay.join(", ")) || "[Not specified]"}\n`);
     L.push(`How will lesion be identified: ${cap(lesionId) || "N/A"}\n`);
     L.push(`Remain on TWW pathway: ${cap(twwPathway) || "[Not specified]"}\n`);
     L.push(`Follow up: ${cap(followUp) || "[Not specified]"}\n`);
