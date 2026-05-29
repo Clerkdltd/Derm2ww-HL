@@ -458,6 +458,12 @@ export default function ClinicLetterApp() {
   const removeLesion = (i) => { if (lesions.length > 1) setLesions(lesions.filter((_, idx) => idx !== i)); };
   const updateLesion = (i, f, v) => { const c = [...lesions]; c[i] = { ...c[i], [f]: v }; setLesions(c); };
 
+  useEffect(() => {
+    if (lesionId === "Clinical photography on PACS") {
+      setManagementPlan(prev => prev.includes("Clinical photography") ? prev : [...prev, "Clinical photography"]);
+    }
+  }, [lesionId]);
+
   const allDiagnoses = useMemo(() => { const d = [...diagnosis]; if (diagnosisFree) d.push(diagnosisFree); return d; }, [diagnosis, diagnosisFree]);
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const skinTypeShort   = useMemo(() => SKIN_TYPES.find(t => t.full === skinType)?.short || skinType, [skinType]);
