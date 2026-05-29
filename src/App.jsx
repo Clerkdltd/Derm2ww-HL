@@ -45,7 +45,7 @@ const DEFAULT_SETTINGS = {
   reasonOptions:        ["Two-week wait skin cancer referral", "Follow up"],
   consultantOptions:    ["Dr Griffin", "Dr Stylianou"],
   diagnosisOptions:     ["Suspected basal cell carcinoma", "Suspected squamous cell carcinoma", "Suspected melanoma", "Seborrhoeic keratosis", "Actinic keratosis"],
-  managementOptions:    ["Reassurance and discharge", "Clinical photography", "Biopsy", "Referral to plastic surgeon", "Referral to Mohs surgeon", "Referral for excisional biopsy", "Referral for punch biopsy", "Referral for curette and cautery", "Cryotherapy", "Clinic review follow up"],
+  managementOptions:    ["Reassurance and discharge", "Clinical photography", "Biopsy", "Referral to plastic surgeon", "Referral to Mohs surgeon", "Referral for excisional biopsy", "Referral for punch biopsy", "Referral for curette and cautery", "Cryotherapy", "5-fluorouracil cream", "Clinic review follow up"],
   patientInfoOptions:   ["ABCDE mole check", "Sun safety", "Seborrhoeic keratosis", "Incisional biopsy", "Curette and cautery", "Punch biopsy", "Cryotherapy", "Efudix", "Actinic keratosis"],
   gpActionsOptions:     ["Script", "None"],
   twwOptions:           ["Step down", "Remain on TWW pathway"],
@@ -619,6 +619,10 @@ export default function ClinicLetterApp() {
     }
     L.push("");
     if (lesions[0]?.site) { L.push(`The lesion on the ${low(lesions[0].site)} is typical of a ${low(allDiagnoses[0]) || "[diagnosis]"}.`); L.push(""); }
+    if (managementPlan.includes("5-fluorouracil cream")) {
+      L.push("Please apply 5-FU (Efudix or Tolak) cream once daily for 4 weeks to the affected areas as discussed. Wash your hands thoroughly after each application. This treatment is expected to cause some irritation and soreness — it is acceptable to skip the occasional day if needed. The crusting and scabbing will settle over a few weeks once treatment is complete. Occasionally a repeat course is required.");
+      L.push("");
+    }
     L.push(consultantSentence);
     L.push("");
     L.push("Management as above.\n");
