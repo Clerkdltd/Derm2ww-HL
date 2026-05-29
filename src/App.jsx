@@ -620,7 +620,7 @@ export default function ClinicLetterApp() {
     L.push("");
     if (lesions[0]?.site) { L.push(`The lesion on the ${low(lesions[0].site)} is typical of a ${low(allDiagnoses[0]) || "[diagnosis]"}.`); L.push(""); }
     if (managementPlan.includes("5-fluorouracil cream")) {
-      L.push("Please apply 5-FU (Efudix or Tolak) cream once daily for 4 weeks to the affected areas as discussed. Wash your hands thoroughly after each application. This treatment is expected to cause some irritation and soreness — it is acceptable to skip the occasional day if needed. The crusting and scabbing will settle over a few weeks once treatment is complete. Occasionally a repeat course is required.");
+      L.push("Please apply 5-FU (Efudix or Tolak) cream once daily for 4 weeks to the affected areas as discussed. Wash your hands thoroughly after each application. This treatment is expected to cause some irritation and soreness, and it is acceptable to skip the occasional day if needed. The crusting and scabbing will settle over a few weeks once treatment is complete. Occasionally a repeat course is required.");
       L.push("");
     }
     L.push(consultantSentence);
